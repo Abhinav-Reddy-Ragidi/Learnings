@@ -7,7 +7,7 @@
 
 > This is my flagship evidence entry and the **source of truth for the system's architecture**. It is deliberately detailed because the codebase is large and touches many disciplines. Use it as the anchor when presenting myself; the [Skills Matrix](../../SKILLS-MATRIX.md) points here for most rows.
 >
-> **Companion notes:** [multitenant-platform-engineering-lessons](multitenant-platform-engineering-lessons.md) — what I *learned* (mistakes, tradeoffs, roadmap). [multi-tenancy-patterns](multi-tenancy-patterns.md) — the *concepts* (five isolation models, enforcement layers, leak paths, interview answers).
+> **Companion note:** [multi-tenancy](multi-tenancy.md) — the *concepts* (five isolation models, enforcement layers, leak paths, interview answers) and the *lessons* from this codebase (mistakes, tradeoffs, roadmap).
 
 > **All figures below are measured from `main`.** See §8 for why that matters.
 
@@ -307,7 +307,7 @@ A single codebase serving five products to multiple institutions, with tenant is
 
 - Codebase: `eng-labs-monorepo` (private) — `apps/{api,dashboard,interview-service,mock-oa,platform-admin,resume,scripts}`, `packages/*`, `cloud-functions/*`
 - Module docs: `documentation_personal/` (mass-customization, digital-evaluation-system, project-mentor, placements, platform-core, exam-proctoring, api-development-quality-report)
-- Companion note: [multitenant-platform-engineering-lessons](multitenant-platform-engineering-lessons.md)
+- Companion note: [multi-tenancy](multi-tenancy.md)
 - Related note: [agentic-development-handbook](../agentic-software-development/agentic-development-handbook.md)
 
 _Last updated: 2026-08-11_
