@@ -1,0 +1,24 @@
+digraph unit_hierarchy {
+  rankdir=TB;
+  bgcolor="transparent";
+  node [shape=box, style="rounded", fontname="Helvetica", fontsize=11];
+
+  subgraph cluster_current {
+    label="Current (problematic)";
+    fontname="Helvetica"; color="#b85450"; fontcolor="#b85450";
+    c_s [label="Stream"];
+    c_d [label="Department"];
+    c_c [label="Class (section)\nreused every year →\nmultiple cohorts mix", style="rounded,filled", fillcolor="#f8cecc"];
+    c_s -> c_d -> c_c;
+  }
+
+  subgraph cluster_target {
+    label="Target";
+    fontname="Helvetica"; color="#82b366"; fontcolor="#82b366";
+    t_s [label="Stream"];
+    t_d [label="Department"];
+    t_y [label="YEAR = admission cohort\n(e.g. 2024-28)", style="rounded,filled", fillcolor="#d5e8d4"];
+    t_c [label="CLASS (section)\nfresh per cohort;\nstudent mapped once"];
+    t_s -> t_d -> t_y -> t_c;
+  }
+}

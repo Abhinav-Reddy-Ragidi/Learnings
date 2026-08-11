@@ -1,0 +1,25 @@
+digraph brain_hands {
+  rankdir=LR;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#888888"];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555"];
+
+  subgraph cluster_local {
+    label="Your machine (e.g. a RunPod pod)";
+    labelloc="t"; fontsize=11; fontcolor="#555555";
+    style="rounded,dashed"; color="#AAAAAA";
+    sdk   [label="SDK  =  HANDS\nagent loop · tool executors\ncontext mgmt · permissions", fillcolor="#D8F5D8"];
+    tools [label="Built-in tools\nRead · Write · Edit · Bash\nGlob · Grep · WebSearch", fillcolor="#EFFBEF"];
+    sdk -> tools [dir=none];
+  }
+
+  subgraph cluster_remote {
+    label="Anthropic servers";
+    labelloc="t"; fontsize=11; fontcolor="#555555";
+    style="rounded,dashed"; color="#AAAAAA";
+    model [label="Claude model  =  BRAIN\nreads context, decides\n(output is only tokens)", fillcolor="#D7E8FF"];
+  }
+
+  sdk -> model [label="  Messages API — over the network, every turn\n  (the \"+\" is a network request, not a package boundary)", dir=both];
+}

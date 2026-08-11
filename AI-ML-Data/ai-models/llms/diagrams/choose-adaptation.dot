@@ -1,0 +1,34 @@
+digraph choose {
+  rankdir=TB;
+  graph [fontname="Helvetica", ranksep=0.35, nodesep=0.35];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge  [color="#5A7391", arrowsize=0.6, fontname="Helvetica", fontsize=8];
+
+  q0 [label="Output is wrong. Why?", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+
+  q1 [label="Missing FACTS\nit could never have known?", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+  q2 [label="Wrong FORMAT or STYLE?", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+  q3 [label="Reasoning too SHALLOW?", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+  q4 [label="Needs to ACT on the world?", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+
+  a1 [label="RAG / tools\nfeed the facts in at request time", fillcolor="#D8E4F0"];
+  a2 [label="Prompt + schema constraints\nexamples, structured output", fillcolor="#D8E4F0"];
+  a3 [label="Decompose the task\nor raise the reasoning budget", fillcolor="#D8E4F0"];
+  a4 [label="Tool use / agent loop\nwith approval gates", fillcolor="#D8E4F0"];
+  a5 [label="Fine-tune\nonly for consistent tone, deep domain\nidiom, or latency/cost at scale", fillcolor="#EBCEA6", color="#A9762F"];
+
+  q0 -> q1;
+  q1 -> a1 [label="yes"];
+  q1 -> q2 [label="no"];
+  q2 -> a2 [label="yes"];
+  q2 -> q3 [label="no"];
+  q3 -> a3 [label="yes"];
+  q3 -> q4 [label="no"];
+  q4 -> a4 [label="yes"];
+  q4 -> a5 [label="none of the above"];
+
+  n [label="Order of effort: prompt, then retrieve, then tools,\nthen decompose, and only then fine-tune.\nFine-tuning teaches BEHAVIOUR, not FACTS.",
+     shape=note, fillcolor="#FAFAFA", fontsize=8];
+  a5 -> n [style=dotted, arrowhead=none];
+}

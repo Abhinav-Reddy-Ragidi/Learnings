@@ -1,0 +1,21 @@
+digraph three_gate {
+  rankdir=LR;
+  bgcolor="transparent";
+  node [shape=box, style="rounded", fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=10];
+
+  req [label="Request", shape=oval, style="filled", fillcolor="#dae8fc"];
+  g1  [label="Gate 1\nAuthentication\n(requireAuth)"];
+  g2  [label="Gate 2\nAuthorisation\n(role + permission)"];
+  g3  [label="Gate 3\nFCB\n(feature enabled\nfor tenant?)"];
+  ok  [label="Handler executes", shape=oval, style="filled", fillcolor="#d5e8d4"];
+
+  f1 [label="401", shape=box, style="rounded,filled", fillcolor="#f8cecc"];
+  f2 [label="403", shape=box, style="rounded,filled", fillcolor="#f8cecc"];
+  f3 [label="403", shape=box, style="rounded,filled", fillcolor="#f8cecc"];
+
+  req -> g1 -> g2 -> g3 -> ok [label="pass"];
+  g1 -> f1 [label="no user"];
+  g2 -> f2 [label="wrong role"];
+  g3 -> f3 [label="feature off"];
+}

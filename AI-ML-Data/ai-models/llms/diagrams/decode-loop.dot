@@ -1,0 +1,30 @@
+// Serpentine layout: the chain is split into two rows so the figure stays
+// page-shaped. `constraint=false` on the row-breaking edge lets `samp` start a
+// new rank-0 row instead of continuing the first one.
+digraph decode {
+  rankdir=LR;
+  graph [fontname="Helvetica", ranksep=0.45, nodesep=0.35];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge  [color="#5A7391", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+  prompt [label="Prompt text"];
+  tok    [label="Tokenise\ntext to token IDs"];
+  fwd    [label="Forward pass over\nall tokens so far"];
+  dist   [label="Distribution over the\nwhole vocabulary", fillcolor="#D8E4F0"];
+
+  samp   [label="Sample one token\n(temperature, top-p)", fillcolor="#EBCEA6", color="#A9762F"];
+  app    [label="Append to\nthe sequence"];
+  stop   [label="Stop?\nEOS · max tokens\n· stop sequence", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+  out    [label="Detokenise\nto output text", fillcolor="#D8E4F0"];
+
+  prompt -> tok -> fwd -> dist;
+  dist -> samp [constraint=false];
+  samp -> app -> stop;
+  stop -> out [label="yes"];
+  stop -> fwd [label="no — one more token", style=dashed, constraint=false];
+
+  note [label="One forward pass = ONE token.\nNothing already emitted can be taken back.",
+        shape=note, fillcolor="#FAFAFA", fontsize=9];
+  out -> note [style=dotted, arrowhead=none, constraint=false];
+}

@@ -1,0 +1,35 @@
+digraph lifecycle {
+  rankdir=LR;
+  graph [fontname="Helvetica", ranksep=0.5, nodesep=0.3, compound=true];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge  [color="#5A7391", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_train {
+    label="TRAINING  (slow, offline, expensive, done once)";
+    fontname="Helvetica"; fontsize=10; color="#A9762F"; style=dashed;
+    data    [label="Data"];
+    arch    [label="Architecture\n(empty weights)"];
+    loss    [label="Loss function\n\"how wrong was I?\""];
+    optim   [label="Optimiser\n(gradient descent)"];
+    weights [label="Trained weights\n= the model", fillcolor="#EBCEA6", color="#A9762F"];
+
+    data -> loss;
+    arch -> loss;
+    loss -> optim [label="gradient"];
+    optim -> loss [label="nudge weights", style=dashed, constraint=false];
+    optim -> weights [label="converged"];
+  }
+
+  subgraph cluster_infer {
+    label="INFERENCE  (fast, online, per-request)";
+    fontname="Helvetica"; fontsize=10; color="#3B5470"; style=dashed;
+    input  [label="New input"];
+    fwd    [label="Forward pass\n(weights frozen)"];
+    output [label="Prediction", fillcolor="#D8E4F0"];
+    input -> fwd -> output;
+  }
+
+  weights -> fwd [label="deployed", lhead=cluster_infer];
+  output -> data [label="feedback / new labels\n(retrain later)", style=dotted, constraint=false];
+}

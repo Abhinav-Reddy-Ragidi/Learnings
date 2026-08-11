@@ -1,0 +1,38 @@
+digraph b2d {
+  rankdir=LR;
+  graph [fontname="Helvetica", ranksep=1.0, nodesep=0.12, splines=polyline];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9,
+         margin="0.12,0.06", width=2.5];
+  edge  [color="#5A7391", arrowsize=0.6];
+
+  subgraph cluster_b {
+    label="BEHAVIOUR  (a property of how the model works)";
+    fontname="Helvetica"; fontsize=10; color="#A9762F"; style=dashed;
+    node [fillcolor="#EBCEA6", color="#A9762F"];
+    b1 [label="Writes left-to-right,\ncannot revise"];
+    b2 [label="Samples probabilistically\n— not deterministic"];
+    b3 [label="Attention is uneven\nacross the window"];
+    b4 [label="Fluency is independent\nof correctness"];
+    b5 [label="Reasoning happens\nin emitted tokens"];
+    b6 [label="Sensitive to prompt\nposition and structure"];
+    b7 [label="Stateless between calls"];
+    b8 [label="Knowledge is frozen\nand long-tail-thin"];
+  }
+
+  subgraph cluster_d {
+    label="PIPELINE DESIGN RULE  (what you build because of it)";
+    fontname="Helvetica"; fontsize=10; color="#3B5470"; style=dashed;
+    node [fillcolor="#D8E4F0", color="#3B5470"];
+    d1 [label="Plan-then-write as two calls;\nadd a revise pass"];
+    d2 [label="Validate + bounded retry;\npin params; cache; log seeds"];
+    d3 [label="Instructions at the edges;\nrerank and trim the middle"];
+    d4 [label="Never trust prose — force schema,\nverify against a source"];
+    d5 [label="Give room to think;\nbudget the effort per route"];
+    d6 [label="Freeze prompt structure;\nversion it like code"];
+    d7 [label="You own state: pass history,\nsummarise, store memory"];
+    d8 [label="Retrieve, don't recall:\nRAG + tools for fresh facts"];
+  }
+
+  b1 -> d1; b2 -> d2; b3 -> d3; b4 -> d4;
+  b5 -> d5; b6 -> d6; b7 -> d7; b8 -> d8;
+}

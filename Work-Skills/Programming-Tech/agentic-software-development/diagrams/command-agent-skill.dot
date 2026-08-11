@@ -1,0 +1,23 @@
+digraph compose {
+  rankdir=TB;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#888888"];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555"];
+
+  human [label="You type  /ship", shape=oval, fillcolor="#FDE2C4"];
+  cmd   [label="COMMAND  (/ship)\na procedure in your session", fillcolor="#FFF1C9"];
+  orch  [label="Orchestrator = the main session\nholds the loop, follows the playbook", fillcolor="#FFF4E6"];
+
+  bedev [label="be-dev  (AGENT)\nisolated worker — own context/tools", fillcolor="#D7E8FF"];
+  berev [label="be-reviewer  (AGENT)\nno Edit / no Agent → can't spawn", fillcolor="#D7E8FF"];
+  bemig [label="be-migration  (AGENT)", fillcolor="#D7E8FF"];
+
+  skill [label="backend  (SKILL)\nconventions · registries · rules", shape=note, fillcolor="#D8F5D8"];
+
+  human -> cmd -> orch;
+  orch -> bedev [label="  spawns"];
+  orch -> berev [label="  spawns"];
+  bedev -> bemig [label="  nested spawn\n  (be-dev has the Agent tool)"];
+  bedev -> skill [label="  loads before coding", style=dashed];
+}

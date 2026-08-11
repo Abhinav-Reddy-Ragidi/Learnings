@@ -1,0 +1,14 @@
+digraph two_levels {
+  rankdir=TB;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#888888", width=5];
+  edge  [color="#777777"];
+
+  L2 [label="LEVEL 2 — harness engineering YOU do\n.claude/  :  agents · commands · skills · CLAUDE.md\n(give the model more context + structure)", fillcolor="#FFE0E0"];
+  L1 [label="LEVEL 1 — harness the SDK gives you out of the box\nagent loop · built-in tools · context mgmt · permissions", fillcolor="#D8F5D8"];
+  base [label="Claude model  (the brain, remote)", fillcolor="#D7E8FF"];
+
+  L2 -> L1 [dir=none];
+  L1 -> base [dir=none];
+}

@@ -1,0 +1,26 @@
+digraph agent_loop {
+  rankdir=TB;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#888888"];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555"];
+
+  you    [label="YOU", shape=oval, fillcolor="#FDE2C4"];
+  prompt [label="Prompt", fillcolor="#FFF4E6"];
+  resp   [label="Response", fillcolor="#FFF4E6"];
+
+  subgraph cluster_loop {
+    label="The agent loop — runs by itself (you are NOT involved here)";
+    labelloc="t"; fontsize=11; fontcolor="#555555";
+    style="rounded,dashed"; color="#AAAAAA";
+    model [label="Claude model  =  BRAIN  (remote)\ndecides: text + tool calls", fillcolor="#D7E8FF"];
+    sdk   [label="SDK  =  HANDS  (local)\nruns the tools, captures output", fillcolor="#D8F5D8"];
+    model -> sdk [label="  tool calls"];
+    sdk -> model [label="  tool results (next turn)"];
+  }
+
+  you -> prompt;
+  prompt -> model;
+  model -> resp [label="  no tool calls left = \"I'm done\"", style=dashed];
+  resp -> you;
+}

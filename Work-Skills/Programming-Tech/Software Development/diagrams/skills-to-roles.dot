@@ -1,0 +1,37 @@
+digraph SkillsToRoles {
+  rankdir=LR;
+  bgcolor="transparent";
+  node [fontname="Helvetica", fontsize=10];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6];
+
+  // Skill clusters (left)
+  node [shape=box, style="rounded,filled", fillcolor="#e0e7ff", color="#4338ca"];
+  s_backend [label="Backend / API design\nExpress · service layer"];
+  s_data [label="Data modeling\nPrisma · CockroachDB"];
+  s_arch [label="Multi-tenant SaaS\narchitecture · refactoring"];
+  s_frontend [label="Frontend\nNext.js · React"];
+  s_ai [label="AI integration\nLLM · realtime voice"];
+  s_test [label="Testing & quality\nJest · coverage gates"];
+  s_sec [label="Security & DevOps\nSAST · CI · ISO 27001"];
+  s_obs [label="Observability\nOpenTelemetry"];
+  s_agentic [label="AI-native / agentic\ndevelopment"];
+
+  // Roles (right)
+  node [shape=box, style="filled", fillcolor="#dcfce7", color="#15803d"];
+  r_fullstack [label="Full-Stack Engineer"];
+  r_backend [label="Backend / Platform Engineer"];
+  r_ai [label="AI / ML Application Engineer"];
+  r_staff [label="Senior / Staff / Tech Lead"];
+  r_devops [label="DevSecOps / Platform Reliability"];
+  r_founder [label="Founding / Product Engineer"];
+
+  s_backend -> r_backend; s_backend -> r_fullstack;
+  s_data -> r_backend; s_data -> r_staff;
+  s_arch -> r_staff; s_arch -> r_backend; s_arch -> r_founder;
+  s_frontend -> r_fullstack; s_frontend -> r_founder;
+  s_ai -> r_ai; s_ai -> r_founder;
+  s_test -> r_staff; s_test -> r_devops;
+  s_sec -> r_devops; s_sec -> r_staff;
+  s_obs -> r_devops; s_obs -> r_backend;
+  s_agentic -> r_founder; s_agentic -> r_staff; s_agentic -> r_ai;
+}

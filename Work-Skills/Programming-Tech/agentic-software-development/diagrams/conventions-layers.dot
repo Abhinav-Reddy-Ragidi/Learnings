@@ -1,0 +1,19 @@
+digraph conventions {
+  rankdir=TB;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#888888", width=5.2];
+  edge  [fontname="Helvetica", fontsize=10, color="#555555"];
+
+  claude [label="CLAUDE.md  —  repo-wide, ALWAYS loaded\nnaming · commit format · domain language · gates\n(cheap, broad orientation for everyone)", fillcolor="#FFE0E0"];
+  skill  [label="SKILL (backend / frontend)  —  loaded ON DEMAND\nRLS · decorator registry · auth-event schema · state machines\n(deep, domain-specific — single source of truth)", fillcolor="#D8F5D8"];
+  agent  [label="AGENT (be-dev …)  —  role / behavior ONLY\nwhat this worker does + returns; points to the skill", fillcolor="#D7E8FF"];
+
+  claude -> skill [style=invis];
+  skill -> agent [style=invis];
+  agent -> skill [label="  references (does not copy)", constraint=false, style=dashed];
+
+  rule [shape=plaintext, fontcolor="#555555",
+        label="Rule of thumb:  invariants of the code → SKILL (deep) or CLAUDE.md (broad)        what a worker does → AGENT"];
+  agent -> rule [style=invis];
+}

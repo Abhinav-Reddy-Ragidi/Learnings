@@ -1,0 +1,21 @@
+digraph ctx {
+  rankdir=TB;
+  graph [fontname="Helvetica", ranksep=0.35, nodesep=0.12];
+  node  [shape=box, style="filled", fillcolor="#EEF2F7", width=5.0, height=0.42,
+         color="#3B5470", fontname="Helvetica", fontsize=10];
+  edge  [style=invis];
+
+  t [label="System prompt / instructions          STRONG attention", fillcolor="#EBCEA6", color="#A9762F"];
+  a [label="Retrieved documents, examples", fillcolor="#E4EAF0"];
+  b [label="... more middle content ...        WEAKEST attention", fillcolor="#F2F2F2", color="#9AA5B1"];
+  c [label="... and more ...", fillcolor="#F2F2F2", color="#9AA5B1"];
+  d [label="Conversation history", fillcolor="#E4EAF0"];
+  e [label="The actual question / task          STRONG attention", fillcolor="#EBCEA6", color="#A9762F"];
+  f [label="Model's own output grows here (and eats the same budget)", fillcolor="#D8E4F0"];
+
+  t -> a -> b -> c -> d -> e -> f;
+
+  note [label="\"Lost in the middle\": recall is best at the edges\nof the window and worst in the middle.\n\nDesign rule — put instructions at the top,\nthe task at the bottom, and keep the middle short.",
+        shape=note, fillcolor="#FAFAFA", fontsize=9, width=0, height=0];
+  f -> note;
+}

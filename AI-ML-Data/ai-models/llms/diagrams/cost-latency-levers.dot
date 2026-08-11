@@ -1,0 +1,34 @@
+digraph levers {
+  rankdir=LR;
+  graph [fontname="Helvetica", ranksep=0.7, nodesep=0.15];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge  [color="#5A7391", arrowsize=0.6];
+
+  subgraph cluster_c {
+    label="COST is driven by";
+    fontname="Helvetica"; fontsize=10; color="#A9762F"; style=dashed;
+    node [fillcolor="#EBCEA6", color="#A9762F"];
+    c1 [label="Input tokens\n(prompt + history + retrieved docs)"];
+    c2 [label="Output tokens\n(usually priced higher)"];
+    c3 [label="Number of calls\n(retries, loops, judges, agents)"];
+    c4 [label="Model tier"];
+  }
+
+  subgraph cluster_l {
+    label="LEVERS you actually pull";
+    fontname="Helvetica"; fontsize=10; color="#3B5470"; style=dashed;
+    node [fillcolor="#D8E4F0"];
+    l1 [label="Prompt caching — keep the stable prefix\nbyte-identical and put volatile text last"];
+    l2 [label="Trim context — rerank, summarise history,\ndrop stale tool output"];
+    l3 [label="Cap output — schema instead of prose,\nexplicit length limits"];
+    l4 [label="Route by difficulty — small model for easy\ncases, escalate only on failure"];
+    l5 [label="Batch offline work; stream interactive work\n(latency felt, not reduced)"];
+    l6 [label="Bound every loop — max retries,\nmax tool steps, token budget"];
+  }
+
+  c1 -> l1; c1 -> l2;
+  c2 -> l3;
+  c3 -> l6; c3 -> l5;
+  c4 -> l4;
+}

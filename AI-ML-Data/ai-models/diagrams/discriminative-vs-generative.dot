@@ -1,0 +1,30 @@
+digraph disc_gen {
+  rankdir=TB;
+  graph [fontname="Helvetica", ranksep=0.45, nodesep=0.4];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge  [color="#5A7391", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_d {
+    label="DISCRIMINATIVE — learns a boundary";
+    fontname="Helvetica"; fontsize=10; color="#3B5470"; style=dashed;
+    d_in  [label="Input x\n(email text)"];
+    d_m   [label="P(y | x)\n\"which class?\""];
+    d_out [label="Label y\nspam / not spam", fillcolor="#D8E4F0"];
+    d_use [label="Classification, regression,\nranking, detection", shape=note, fillcolor="#FAFAFA"];
+    d_in -> d_m -> d_out -> d_use [style=dotted];
+  }
+
+  subgraph cluster_g {
+    label="GENERATIVE — learns the distribution";
+    fontname="Helvetica"; fontsize=10; color="#A9762F"; style=dashed;
+    g_in  [label="Prompt / noise / condition"];
+    g_m   [label="P(x)  or  P(x | condition)\n\"what does real data look like?\""];
+    g_out [label="A new sample x\ntext, image, audio, code", fillcolor="#EBCEA6", color="#A9762F"];
+    g_use [label="LLMs, diffusion, TTS,\ncode generation", shape=note, fillcolor="#FAFAFA"];
+    g_in -> g_m -> g_out -> g_use [style=dotted];
+  }
+
+  d_m -> g_m [label="  can be sampled from,\n  so it can also classify  ",
+              style=dashed, dir=back, constraint=false];
+}

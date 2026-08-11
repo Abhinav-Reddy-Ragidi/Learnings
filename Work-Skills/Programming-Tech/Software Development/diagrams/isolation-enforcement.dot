@@ -1,0 +1,51 @@
+// WHERE tenant isolation is enforced decides whether it can be forgotten.
+// The lower the layer, the harder it is to bypass by accident.
+digraph IsolationEnforcement {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.25;
+  ranksep=0.42;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.16,0.09"];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.6];
+  graph [fontname="Helvetica", fontsize=11, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_a {
+    label="Layer 1 · Application code  —  WEAKEST";
+    fillcolor="#fef2f2";
+    a1 [label="Every query adds the filter by hand\nwhere: { organisation_id: ctx.orgId }", fillcolor="#fecaca", color="#b91c1c"];
+    a2 [label="Forgettable in every new query.\neng-labs today: 1,330 occurrences\nacross 154 files", fillcolor="#fee2e2"];
+    a1 -> a2 [style=invis];
+    { rank=same; a1; a2; }
+  }
+
+  subgraph cluster_b {
+    label="Layer 2 · ORM middleware / repository";
+    fillcolor="#fefce8";
+    b1 [label="Scope injected once, centrally\nBaseRepository.injectOrgScope()\nor a Prisma client extension", fillcolor="#fef08a", color="#a16207"];
+    b2 [label="Forgettable only by bypassing the\nrepository — catchable with lint.\neng-labs: 8 service classes adopted", fillcolor="#fef9c3"];
+    b1 -> b2 [style=invis];
+    { rank=same; b1; b2; }
+  }
+
+  subgraph cluster_c {
+    label="Layer 3 · Database  —  Row-Level Security";
+    fillcolor="#f0fdf4";
+    c1 [label="Postgres RLS policy on every table\nSET app.tenant_id per connection", fillcolor="#bbf7d0", color="#15803d"];
+    c2 [label="Cannot be forgotten in SQL at all.\nThe database refuses to return\nanother tenant's rows.", fillcolor="#dcfce7"];
+    c1 -> c2 [style=invis];
+    { rank=same; c1; c2; }
+  }
+
+  subgraph cluster_d {
+    label="Layer 4 · Separate database / instance  —  STRONGEST";
+    fillcolor="#eff6ff";
+    d1 [label="Tenant resolved to its own connection\nor its own deployment", fillcolor="#bfdbfe", color="#1d4ed8"];
+    d2 [label="A cross-tenant query is not\nexpressible. Isolation is physical.", fillcolor="#dbeafe"];
+    d1 -> d2 [style=invis];
+    { rank=same; d1; d2; }
+  }
+
+  a1 -> b1 -> c1 -> d1 [label="  harder to bypass", fontsize=8.5, fontcolor="#64748b"];
+}

@@ -1,0 +1,71 @@
+digraph EngLabsStack {
+  rankdir=TB;
+  bgcolor="transparent";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#334155", fillcolor="#f1f5f9", penwidth=1.2];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.7];
+  graph [fontname="Helvetica", fontsize=13, labeljust="l", style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_client {
+    label="Client / Frontend";
+    fillcolor="#eff6ff";
+    dashboard [label="Dashboard\nNext.js 16 · React 19\nTailwind · Radix · Zustand"];
+    mockoa [label="Mock OA\ncoding assessment"];
+    admin [label="Platform Admin\nsuper-admin panel"];
+    browserml [label="In-browser ML\nVAD-web · onnxruntime\nMonaco editor"];
+  }
+
+  subgraph cluster_edge {
+    label="Auth & Edge";
+    fillcolor="#f0fdf4";
+    firebase [label="Firebase Auth\ntoken -> req.context"];
+    ratelimit [label="Rate limiting\nCORS · DOMPurify"];
+  }
+
+  subgraph cluster_api {
+    label="Backend API  (Express + TypeScript · 586 endpoints)";
+    fillcolor="#fefce8";
+    routes [label="198 route files\nresponseWrapper · Zod"];
+    services [label="Service layer\nBaseService · BaseRepository\n(tenant-scoped)"];
+    features [label="Feature gating\nentity_features · flags"];
+  }
+
+  subgraph cluster_ai {
+    label="AI Services";
+    fillcolor="#faf5ff";
+    interview [label="Interview Service\nFastAPI · WebSocket\nGemini Live (realtime voice)"];
+    openai [label="OpenAI\nLLM eval / generation"];
+    cloudfns [label="8 Cloud Functions\naudio-explainer · solution-agent\nprompt-eval · tts · job-scouting"];
+  }
+
+  subgraph cluster_data {
+    label="Data & Persistence";
+    fillcolor="#fef2f2";
+    db [label="CockroachDB\n199 Prisma models\nmulti-tenant scoping"];
+    storage [label="AWS S3 · GCS\nSES email"];
+    queue [label="Google Cloud Tasks\nworkerpool jobs"];
+  }
+
+  subgraph cluster_obs {
+    label="Observability & Security";
+    fillcolor="#f8fafc";
+    otel [label="OpenTelemetry\ntraces · metrics · logs"];
+    sec [label="Semgrep · Trivy · Gitleaks\nISO 27001 change mgmt"];
+    ci [label="GitHub Actions CI\n8 workflows"];
+  }
+
+  dashboard -> firebase;
+  mockoa -> firebase;
+  admin -> firebase;
+  firebase -> ratelimit -> routes;
+  routes -> services -> features;
+  services -> db;
+  services -> storage;
+  services -> queue;
+  services -> openai;
+  dashboard -> interview [label="WebSocket", fontsize=9];
+  interview -> db;
+  queue -> cloudfns;
+  services -> otel;
+  interview -> otel;
+  ci -> sec;
+}

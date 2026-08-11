@@ -1,0 +1,20 @@
+digraph stack {
+  rankdir=BT;
+  graph [fontname="Helvetica", ranksep=0.3, nodesep=0.2];
+  node  [shape=box, style="filled", fillcolor="#EEF2F7", width=4.6, height=0.55,
+         color="#3B5470", fontname="Helvetica", fontsize=10];
+  edge  [color="#5A7391", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+  l1 [label="Compute + data\nGPUs / TPUs, web-scale corpora", fillcolor="#DDE3E9"];
+  l2 [label="Pretraining\nself-supervised, one model, months of compute", fillcolor="#D8E4F0"];
+  l3 [label="Foundation model\ngeneral capability, no specific task", fillcolor="#EBCEA6", color="#A9762F"];
+  l4 [label="Adaptation\nprompting  ·  RAG  ·  tool use  ·  fine-tuning  ·  distillation"];
+  l5 [label="Task behaviour\nsummariser, classifier, agent, copilot", fillcolor="#D8E4F0"];
+  l6 [label="Product\nevals, guardrails, observability, cost controls"];
+
+  l1 -> l2 -> l3 -> l4 -> l5 -> l6;
+
+  note [label="The shift: you no longer train a model per task.\nYou adapt one general model to many tasks.",
+        shape=note, fillcolor="#FAFAFA", width=0, height=0, fontsize=9];
+  l3 -> note [style=dotted, arrowhead=none, constraint=false];
+}

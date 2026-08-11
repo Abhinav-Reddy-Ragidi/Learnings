@@ -1,0 +1,55 @@
+// Four independent layers of a monorepo. Each answers a different question;
+// none overlap. Left = the concept, right = how it is realised in eng-labs.
+digraph MonorepoLayers {
+  rankdir=TB;
+  bgcolor="transparent";
+  newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.16,0.10"];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.65];
+  graph [fontname="Helvetica", fontsize=12, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_4 {
+    label="4 · Scripts — do the actual work";
+    fillcolor="#fef2f2";
+    c4 [label="Compilers, bundlers, linters,\ntest runners"];
+    r4 [label="tsc · next build · prisma generate\njest · eslint · uvicorn", fillcolor="#fee2e2"];
+  }
+
+  subgraph cluster_3 {
+    label="3 · Task runner — which scripts, what order, skip if unchanged";
+    fillcolor="#fefce8";
+    c3 [label="Derives build order from the\ndependency graph; caches outputs"];
+    r3 [label="Turborepo  ·  turbo.json\ndependsOn ^build · outputs · env", fillcolor="#fef9c3"];
+  }
+
+  subgraph cluster_2 {
+    label="2 · Workspace — link local projects, one per language";
+    fillcolor="#f0fdf4";
+    c2 [label="Symlinks local folders so they can\nimport each other; one lockfile"];
+    r2 [label="pnpm-workspace.yaml + pnpm-lock.yaml  (JS)\npyproject.toml + uv.lock  (Python)", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_1 {
+    label="1 · Monorepo — a folder decision, nothing more";
+    fillcolor="#eff6ff";
+    c1 [label="Many projects, one Git repo.\nAtomic commits · one history · grep-able"];
+    r1 [label="eng-labs-monorepo/\n7 apps · 8 packages · 8 cloud functions", fillcolor="#dbeafe"];
+  }
+
+  c1 -> c2 -> c3 -> c4 [style=invis];
+  c1 -> r1 [style=invis, constraint=false];
+  c2 -> r2 [style=invis, constraint=false];
+  c3 -> r3 [style=invis, constraint=false];
+  c4 -> r4 [style=invis, constraint=false];
+
+  { rank=same; c1; r1; }
+  { rank=same; c2; r2; }
+  { rank=same; c3; r3; }
+  { rank=same; c4; r4; }
+
+  note [shape=note, fillcolor="#ffffff", color="#94a3b8", fontsize=9,
+        label="Each layer is replaceable. Swap pnpm for npm and Turbo still works.\nDelete Turbo and pnpm still links. Delete both and it is still a monorepo."];
+  c4 -> note [style=invis];
+}

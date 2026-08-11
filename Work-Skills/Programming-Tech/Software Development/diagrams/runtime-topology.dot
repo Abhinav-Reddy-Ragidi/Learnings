@@ -1,0 +1,65 @@
+// Deployed runtime topology. Note the two different server models:
+// Express/Next serve HTTP from inside the Node process; FastAPI needs uvicorn.
+digraph RuntimeTopology {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.28;
+  ranksep=0.65;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.14,0.09"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8.5, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=11.5, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_client {
+    label="Browser";
+    fillcolor="#eff6ff";
+    dash [label="Dashboard :3000\nNext.js server + React", fillcolor="#dbeafe"];
+    oa   [label="Mock OA :3002", fillcolor="#dbeafe"];
+    padm [label="Platform Admin :3001", fillcolor="#dbeafe"];
+  }
+
+  subgraph cluster_services {
+    label="Cloud Run services";
+    fillcolor="#fefce8";
+    api  [label="apps/api :8080\nExpress (server is in-process)", fillcolor="#fef9c3"];
+    intv [label="interview-service :8090\nFastAPI  +  uvicorn (separate ASGI server)", fillcolor="#fef9c3"];
+  }
+
+  subgraph cluster_fns {
+    label="Cloud Functions  (own lockfiles, outside the workspace)";
+    fillcolor="#faf5ff";
+    fns [label="ai-evaluator · audio-explainer · solution-agent\nprompt-eval · tts-generator · latex-converter\njob-scouting-ingest · shared", fillcolor="#f3e8ff"];
+  }
+
+  subgraph cluster_data {
+    label="Managed state";
+    fillcolor="#f0fdf4";
+    ckdb [label="CockroachDB\n199 models", fillcolor="#dcfce7"];
+    gcs  [label="GCS / S3", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_ext {
+    label="External";
+    fillcolor="#fef2f2";
+    gem  [label="Gemini Live", fillcolor="#fee2e2"];
+    oai  [label="OpenAI", fillcolor="#fee2e2"];
+    pay  [label="Razorpay", fillcolor="#fee2e2"];
+    fb   [label="Firebase Auth", fillcolor="#fee2e2"];
+  }
+
+  dash -> api  [label="REST"];
+  oa   -> api  [label="REST"];
+  padm -> api  [label="REST"];
+  dash -> intv [label="WebSocket\n(audio)"];
+
+  api  -> ckdb [label="Prisma"];
+  api  -> gcs;
+  api  -> fns  [label="HTTP"];
+  api  -> pay;
+  api  -> fb   [label="verify token"];
+  intv -> ckdb [label="asyncpg"];
+  intv -> gem  [label="streaming"];
+  intv -> gcs;
+  fns  -> oai;
+}

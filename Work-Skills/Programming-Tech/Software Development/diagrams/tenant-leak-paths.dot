@@ -1,0 +1,43 @@
+// Where tenant context is normally carried, and the six paths that routinely
+// lose it. Almost every real cross-tenant leak happens on the right-hand side.
+digraph TenantLeakPaths {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.20;
+  ranksep=0.60;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.15,0.08"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6];
+  graph [fontname="Helvetica", fontsize=11, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  ctx [label="Tenant context\nreq.context.tenantId\n(set by auth middleware)",
+       fillcolor="#dbeafe", color="#1d4ed8", penwidth=1.6];
+
+  subgraph cluster_ok {
+    label="Carries tenant context  —  the happy path";
+    fillcolor="#f0fdf4";
+    ok1 [label="Normal CRUD handlers", fillcolor="#dcfce7"];
+    ok2 [label="Guards: requireRole,\ncheckFeature", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_leak {
+    label="Commonly LOSES tenant context  —  audit these first";
+    fillcolor="#fef2f2";
+    l1 [label="Background jobs & queues\nno request, so no req.context", fillcolor="#fee2e2"];
+    l2 [label="Reports & aggregates\nCOUNT/SUM written without the filter", fillcolor="#fee2e2"];
+    l3 [label="Cache keys\nkey missing the tenant discriminator", fillcolor="#fee2e2"];
+    l4 [label="Admin & impersonation paths\ndeliberately cross-tenant — then reused", fillcolor="#fee2e2"];
+    l5 [label="findUnique / lookup by id alone\nid is globally unique, so no filter \"needed\"", fillcolor="#fee2e2"];
+    l6 [label="Raw SQL & migrations\nbypass the ORM entirely", fillcolor="#fee2e2"];
+  }
+
+  ctx -> ok1;
+  ctx -> ok2;
+  ctx -> l1 [style=dashed, color="#b91c1c"];
+  ctx -> l2 [style=dashed, color="#b91c1c"];
+  ctx -> l3 [style=dashed, color="#b91c1c"];
+  ctx -> l4 [style=dashed, color="#b91c1c"];
+  ctx -> l5 [style=dashed, color="#b91c1c"];
+  ctx -> l6 [style=dashed, color="#b91c1c"];
+}

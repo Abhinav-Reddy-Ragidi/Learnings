@@ -1,0 +1,35 @@
+// The five multi-tenancy models, ordered strongest-isolation to highest-density.
+// The tradeoff is monotonic: every step down buys efficiency and costs isolation.
+digraph TenancySpectrum {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.20;
+  ranksep=0.30;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.16,0.10", width=4.4];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.55];
+  graph [fontname="Helvetica", fontsize=11, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  top [shape=plaintext, fillcolor="transparent", fontsize=9, fontcolor="#15803d",
+       label="strongest isolation  ·  highest cost per tenant  ·  lowest density"];
+
+  m1 [label="1 · SILO — instance per tenant\nseparate app + database + infrastructure", fillcolor="#dcfce7", color="#15803d", penwidth=1.7];
+  m2 [label="2 · DATABASE PER TENANT\nshared application, one database each", fillcolor="#e8f7e4"];
+  m3 [label="3 · SCHEMA PER TENANT\nshared database, a separate schema each", fillcolor="#fef9c3"];
+  m4 [label="4 · POOLED — shared schema\nevery table carries a tenant_id column", fillcolor="#fed7aa", color="#c2410c", penwidth=1.7];
+
+  bot [shape=plaintext, fillcolor="transparent", fontsize=9, fontcolor="#c2410c",
+       label="weakest isolation  ·  cheapest per tenant  ·  highest density"];
+
+  m5 [label="5 · HYBRID / BRIDGE\npooled by default, siloed for the largest tenants", fillcolor="#dbeafe", color="#1d4ed8", penwidth=1.7];
+
+  note [shape=note, fillcolor="#ffffff", color="#94a3b8", fontsize=8.5, width=0,
+        label="Most B2B SaaS starts at 4 and grows into 5.\nThe question is never \"which is best\" but\n\"what does this customer's contract require?\""];
+
+  top -> m1 [style=invis];
+  m1 -> m2 -> m3 -> m4;
+  m4 -> bot [style=invis];
+  bot -> m5 [style=invis];
+  m5 -> note [style=invis];
+}

@@ -1,0 +1,39 @@
+// Ousterhout's depth test applied to real modules in this codebase.
+// Deep = narrow interface over substantial hidden functionality.
+// rankdir=LR so each panel reads left-to-right; dot stacks the disconnected
+// clusters bottom-up, so they are declared in reverse of the reading order.
+digraph ModuleDepth {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.30;
+  ranksep=0.70;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.1, margin="0.15,0.09"];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.65];
+  graph [fontname="Helvetica", fontsize=11.5, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_leak {
+    label="3 · INFORMATION LEAKAGE — one design decision reflected in 154 files";
+    fillcolor="#fefce8";
+    l_bad  [label="TODAY\n1,330 hand-written organisation_id\nchecks across 154 files", fillcolor="#fef08a", color="#a16207"];
+    l_good [label="TARGET\nBaseRepository.injectOrgScope()\nadds the scope once\n— 24 files adopted so far", fillcolor="#dcfce7", color="#15803d"];
+    l_bad -> l_good [label=" pull complexity\l downward\l", fontsize=9, fontcolor="#a16207", color="#a16207"];
+  }
+
+  subgraph cluster_shallow {
+    label="2 · SHALLOW — the interface costs about as much as the implementation";
+    fillcolor="#fef2f2";
+    s_i [label="INTERFACE\nhandleSuccess(data)\nhandleError(err)", fillcolor="#fecaca", color="#b91c1c"];
+    s_b [label="IMPLEMENTATION\nreturns an object literal;\nlogs and re-throws", fillcolor="#fee2e2"];
+    s_i -> s_b [label=" BaseService\l", fontsize=9, fontcolor="#b91c1c", color="#b91c1c"];
+  }
+
+  subgraph cluster_deep {
+    label="1 · DEEP — one line of interface, five concerns hidden";
+    fillcolor="#f0fdf4";
+    d_i [label="INTERFACE\nrequireModuleAdminAccess(\n  \"placements\",\n  \"services.job_postings\")", fillcolor="#bbf7d0", color="#15803d"];
+    d_b [label="IMPLEMENTATION\nhard-admin bypass · tenant validation\nuser_mappings lookup · safe dot-path walk\nprototype-pollution guard · 401/403 shaping", fillcolor="#dcfce7"];
+    d_i -> d_b [label=" auth-guards.ts\l", fontsize=9, fontcolor="#15803d", color="#15803d"];
+  }
+}

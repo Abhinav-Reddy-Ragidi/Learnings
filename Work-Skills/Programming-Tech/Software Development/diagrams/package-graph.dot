@@ -1,0 +1,54 @@
+// Workspace dependency graph (main, Aug 2026). Acyclic and layered:
+// apps on top, shared packages below, @repo/database at the foundation.
+digraph PackageGraph {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.30;
+  ranksep=0.55;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.14,0.08"];
+  edge [color="#a8b3c4", penwidth=1.0, arrowsize=0.6];
+  graph [fontname="Helvetica", fontsize=11.5, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_apps {
+    label="Apps  (deployable)";
+    fillcolor="#eff6ff";
+    api   [label="apps/api\nExpress · 586 endpoints", fillcolor="#dbeafe"];
+    dash  [label="apps/dashboard\nNext.js 16", fillcolor="#dbeafe"];
+    oa    [label="apps/mock-oa\nNext.js", fillcolor="#dbeafe"];
+    padm  [label="apps/platform-admin\nNext.js", fillcolor="#dbeafe"];
+  }
+
+  subgraph cluster_domain {
+    label="Domain packages";
+    fillcolor="#faf5ff";
+    plac  [label="@repo/placements", fillcolor="#f3e8ff"];
+    mass  [label="@repo/mass-customization", fillcolor="#f3e8ff"];
+  }
+
+  subgraph cluster_shared {
+    label="Shared packages";
+    fillcolor="#f0fdf4";
+    help  [label="@repo/helpers", fillcolor="#dcfce7"];
+    ui    [label="@repo/ui", fillcolor="#dcfce7"];
+    conf  [label="@repo/config", fillcolor="#dcfce7"];
+    anal  [label="@repo/analytics", fillcolor="#dcfce7"];
+    tele  [label="@repo/telemetry", fillcolor="#dcfce7"];
+  }
+
+  db [label="@repo/database\nPrisma · 199 models · CockroachDB",
+      fillcolor="#fef9c3", color="#a16207", penwidth=1.6];
+
+  api  -> {plac help anal conf tele db};
+  dash -> {plac mass anal conf db};
+  oa   -> {help conf db};
+  padm -> {plac help db};
+
+  plac -> {conf db help};
+  mass -> {conf db ui};
+  help -> {tele db};
+  ui   -> db;
+
+  { rank=same; help; ui; conf; anal; tele; }
+}

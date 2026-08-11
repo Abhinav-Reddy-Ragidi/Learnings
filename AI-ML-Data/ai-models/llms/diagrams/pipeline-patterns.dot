@@ -1,0 +1,80 @@
+// Six independent pattern panels, each a left-to-right chain.
+// NOTE: with rankdir=LR, dot stacks disconnected components bottom-up, so the
+// clusters are declared in REVERSE order (6 first) to render as 1..6 top-down.
+digraph patterns {
+  rankdir=LR;
+  graph [fontname="Helvetica", ranksep=0.38, nodesep=0.22];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=9, margin="0.12,0.06"];
+  edge  [color="#5A7391", arrowsize=0.6, fontname="Helvetica", fontsize=8];
+
+  subgraph cluster_6 {
+    label="6. Judge / ensemble\nfor subjective or high-stakes output";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    f1 [label="task"];
+    f2 [label="N candidates\n(varied prompts)", fillcolor="#EBCEA6", color="#A9762F"];
+    f3 [label="judge model\nscores vs a rubric", fillcolor="#EBCEA6", color="#A9762F"];
+    f4 [label="best /\nmajority vote"];
+    f1 -> f2 -> f3 -> f4;
+  }
+
+  subgraph cluster_5 {
+    label="5. Tool / agent loop\nwhen the model must act, not just answer";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    e1 [label="goal"];
+    e2 [label="LLM decides", fillcolor="#EBCEA6", color="#A9762F"];
+    e3 [label="your code\nruns the tool"];
+    e4 [label="result back\ninto context"];
+    e5 [label="done"];
+    e1 -> e2;
+    e2 -> e3 [label="tool call"];
+    e3 -> e4;
+    e4 -> e2 [label="loop", style=dashed, constraint=false];
+    e2 -> e5 [label="no tool needed"];
+  }
+
+  subgraph cluster_4 {
+    label="4. Validate and bounded retry\nthe workhorse for reliability";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    d1 [label="input"];
+    d2 [label="LLM\n(schema-constrained)", fillcolor="#EBCEA6", color="#A9762F"];
+    d3 [label="parse + validate\n+ business rules", shape=diamond, fillcolor="#F3DFC8", color="#A9762F"];
+    d4 [label="accept"];
+    d5 [label="fail closed\n(escalate / fallback)", fillcolor="#F2DEDE", color="#A94442"];
+    d1 -> d2 -> d3;
+    d3 -> d4 [label="pass"];
+    d3 -> d2 [label="retry with\nthe error (max N)", style=dashed, constraint=false];
+    d3 -> d5 [label="N exhausted"];
+  }
+
+  subgraph cluster_3 {
+    label="3. Retrieve then generate (RAG)\nbeats frozen knowledge";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    c1 [label="query"];
+    c2 [label="search /\nvector store"];
+    c3 [label="rerank + trim"];
+    c4 [label="LLM + context", fillcolor="#EBCEA6", color="#A9762F"];
+    c5 [label="answer\n+ citations"];
+    c1 -> c2 -> c3 -> c4 -> c5;
+  }
+
+  subgraph cluster_2 {
+    label="2. Decompose\none hard job becomes several easy ones";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    b1 [label="input"];
+    b2 [label="extract", fillcolor="#EBCEA6", color="#A9762F"];
+    b3 [label="reason", fillcolor="#EBCEA6", color="#A9762F"];
+    b4 [label="format", fillcolor="#EBCEA6", color="#A9762F"];
+    b5 [label="output"];
+    b1 -> b2 -> b3 -> b4 -> b5;
+  }
+
+  subgraph cluster_1 {
+    label="1. Single call\ncheap — the task fits one step";
+    fontname="Helvetica"; fontsize=9; color="#9AA5B1"; style=dashed;
+    a1 [label="input"];
+    a2 [label="LLM", fillcolor="#EBCEA6", color="#A9762F"];
+    a3 [label="output"];
+    a1 -> a2 -> a3;
+  }
+}

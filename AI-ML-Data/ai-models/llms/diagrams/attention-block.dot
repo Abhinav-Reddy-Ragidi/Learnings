@@ -1,0 +1,32 @@
+digraph block {
+  rankdir=TB;
+  graph [fontname="Helvetica", ranksep=0.32, nodesep=0.3];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge  [color="#5A7391", arrowsize=0.7, fontname="Helvetica", fontsize=9];
+
+  emb [label="Token embeddings + position information"];
+
+  subgraph cluster_blk {
+    label="One transformer block  (stacked tens of times)";
+    fontname="Helvetica"; fontsize=10; color="#A9762F"; style=dashed;
+
+    attn [label="Self-attention\nevery token looks at every earlier token\nand decides what is relevant to it",
+          fillcolor="#EBCEA6", color="#A9762F"];
+    add1 [label="+ residual, normalise", fillcolor="#DDE3E9"];
+    ffn  [label="Feed-forward network\nper-token computation / recall"];
+    add2 [label="+ residual, normalise", fillcolor="#DDE3E9"];
+
+    attn -> add1 -> ffn -> add2;
+  }
+
+  head [label="Output head\nto vocabulary logits", fillcolor="#D8E4F0"];
+
+  emb -> attn;
+  add2 -> head [label="  (or into the next block)"];
+  add2 -> attn [label="loop", style=dashed, constraint=false];
+
+  n [label="Attention is the mixing step (tokens talk to each other).\nThe FFN is the thinking step (each token computes alone).\nCost grows with sequence length — that is why context is finite.",
+     shape=note, fillcolor="#FAFAFA", fontsize=9];
+  head -> n [style=dotted, arrowhead=none];
+}

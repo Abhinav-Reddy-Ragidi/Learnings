@@ -1,0 +1,45 @@
+digraph taxonomy {
+  rankdir=LR;
+  graph [fontname="Helvetica", nodesep=0.25, ranksep=0.55, splines=ortho];
+  node  [shape=box, style="rounded,filled", fillcolor="#EEF2F7",
+         color="#3B5470", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge  [color="#5A7391", arrowsize=0.7];
+
+  ai [label="AI model\n(a learned function)", fillcolor="#D8E4F0"];
+
+  classical [label="Classical ML\n(hand-made features)"];
+  deep      [label="Deep learning\n(learned features)", fillcolor="#D8E4F0"];
+
+  lin  [label="Linear / logistic regression"];
+  tree [label="Trees, random forest,\ngradient boosting (XGBoost)"];
+  svm  [label="SVM, k-NN, k-means"];
+
+  cnn  [label="CNN\nimages, grids"];
+  rnn  [label="RNN / LSTM\nsequences (pre-2017)"];
+  gnn  [label="GNN\ngraphs"];
+  diff [label="Diffusion\nimage / video / audio gen"];
+  tfm  [label="Transformer\nany sequence", fillcolor="#F3DFC8", color="#A9762F"];
+
+  llm  [label="LLM\ntext in, text out", fillcolor="#EBCEA6", color="#A9762F"];
+  vit  [label="Vision Transformer\nimages"];
+  mm   [label="Multimodal / VLM\ntext + image + audio"];
+  emb  [label="Embedding model\ntext to vector"];
+
+  ai -> classical;
+  ai -> deep;
+
+  classical -> lin;
+  classical -> tree;
+  classical -> svm;
+
+  deep -> cnn;
+  deep -> rnn;
+  deep -> gnn;
+  deep -> diff;
+  deep -> tfm;
+
+  tfm -> llm;
+  tfm -> vit;
+  tfm -> mm;
+  tfm -> emb;
+}
