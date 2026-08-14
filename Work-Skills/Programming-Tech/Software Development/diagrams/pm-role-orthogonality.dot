@@ -1,0 +1,39 @@
+// "Incharge of a track" and "mentor of a team" are stored as INDEPENDENT facts.
+// Had mentorship been an enrollment role, the overlap case would be inexpressible.
+digraph RoleOrthogonality {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.28;
+  ranksep=0.45;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.15,0.09"];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.6, fontname="Helvetica", fontsize=8.5, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=11, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  user [label="One professor", fillcolor="#dbeafe", color="#1d4ed8", penwidth=1.6];
+
+  subgraph cluster_own {
+    label="Fact A · ownership  —  one role per user per track";
+    fillcolor="#f0fdf4";
+    enr [label="project_enrollments\nrole = PROJECT_INCHARGE\n@@unique([user_id, project_track_id])", fillcolor="#dcfce7"];
+    trk [label="project_tracks\nthe container", fillcolor="#dcfce7"];
+    enr -> trk [label=" owns"];
+  }
+
+  subgraph cluster_mentor {
+    label="Fact B · mentorship  —  per team, role-agnostic";
+    fillcolor="#fefce8";
+    grp [label="project_groups.mentor_id\nset on N teams in the SAME track", fillcolor="#fef9c3"];
+    tm  [label="Team 4 · Team 7 · Team 9 …", fillcolor="#fef9c3"];
+    grp -> tm [label=" guides"];
+  }
+
+  user -> enr [label=" enrolment row"];
+  user -> grp [label=" FK on each team"];
+
+  note [shape=note, fillcolor="#ffffff", color="#94a3b8", fontsize=8.5,
+        label="Because the two are stored separately, \"incharge who mentors every team\"\nis the normal case, not an exception. If mentorship had been modelled as\nrole = PROJECT_MENTOR, the unique constraint would have made it IMPOSSIBLE."];
+  tm -> note [style=invis];
+  trk -> note [style=invis];
+}

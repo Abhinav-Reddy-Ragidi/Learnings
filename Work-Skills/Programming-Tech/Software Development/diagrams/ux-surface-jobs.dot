@@ -1,0 +1,52 @@
+// Organise surfaces by the JOB the user is doing, not by the role they hold.
+// One person may use all three in a single session.
+digraph SurfaceJobs {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.24;
+  ranksep=0.75;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.15,0.09"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6];
+  graph [fontname="Helvetica", fontsize=11, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  q [label="\"What am I\ntrying to do?\"", fillcolor="#dbeafe", color="#1d4ed8", penwidth=1.6];
+
+  subgraph cluster_j1 {
+    label="Job 1 · configure & oversee the cohort";
+    fillcolor="#f0fdf4";
+    s1 [label="TRACK level\nsettings · ideas pool · enrolment\nmilestones · aggregate progress", fillcolor="#dcfce7"];
+    o1 [label="non-evaluative\n(acts, but never grades)", fillcolor="#eafaf1"];
+    s1 -> o1;
+  }
+
+  subgraph cluster_j2 {
+    label="Job 2 · who needs me right now?";
+    fillcolor="#fefce8";
+    s2 [label="MY TEAMS list\ncollapsible sections per track,\nteam rows carrying status", fillcolor="#fef9c3"];
+    o2 [label="ordered by status\none click to any team", fillcolor="#fefce8"];
+    s2 -> o2;
+  }
+
+  subgraph cluster_j3 {
+    label="Job 3 · give me the next thing to review";
+    fillcolor="#faf5ff";
+    s3 [label="REVIEW QUEUE\nflat, cross-track,\ndeep-links to a submission", fillcolor="#f3e8ff"];
+    o3 [label="ordered by urgency\nowns the sequential grind", fillcolor="#faf5ff"];
+    s3 -> o3;
+  }
+
+  subgraph cluster_j4 {
+    label="Job 4 · work on ONE team";
+    fillcolor="#eff6ff";
+    s4 [label="TEAM workspace\nOverview · Idea · Milestones · Team\n+ in-header team switcher", fillcolor="#dbeafe"];
+    o4 [label="a zoom level of the track,\nnot a sibling · switching\nteams PRESERVES the tab", fillcolor="#eff6ff"];
+    s4 -> o4;
+  }
+
+  q -> s1;
+  q -> s2;
+  q -> s3;
+  q -> s4;
+}

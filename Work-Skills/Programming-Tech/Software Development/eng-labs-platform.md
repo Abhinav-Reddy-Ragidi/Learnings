@@ -7,7 +7,7 @@
 
 > This is my flagship evidence entry and the **source of truth for the system's architecture**. It is deliberately detailed because the codebase is large and touches many disciplines. Use it as the anchor when presenting myself; the [Skills Matrix](../../SKILLS-MATRIX.md) points here for most rows.
 >
-> **Companion note:** [multi-tenancy](multi-tenancy.md) — the *concepts* (five isolation models, enforcement layers, leak paths, interview answers) and the *lessons* from this codebase (mistakes, tradeoffs, roadmap).
+> **Companion notes:** [multi-tenancy](multi-tenancy.md) — the *concepts* (five isolation models, enforcement layers, leak paths, interview answers) and the *lessons* from this codebase (mistakes, tradeoffs, roadmap). [user-experience](user-experience.md) — the 13-check UX review list and the role-vs-job surface design case study.
 
 > **All figures below are measured from `main`.** See §8 for why that matters.
 
@@ -198,6 +198,57 @@ request
           · Sentry capture, structured logging
           · writes an api_logs row per request
 ```
+
+---
+
+## 6.5 Domain modelling — Project Mentor as the worked example
+
+The clearest module for explaining *domain* modelling (as opposed to tenancy or infrastructure), and the one with a design lesson worth repeating.
+
+### One container, three levels
+
+```
+Project (= Track, project_tracks)     ← Incharge OWNS this
+   └── Team (project_groups)          ← Mentor GUIDES these
+          └── Student (group_members) ← Learner WORKS here, in one team
+```
+
+There is no separate "project" vs "track" object — `project_tracks` is the single container, **labelled differently per audience** (learners and mentors see "Project"; the incharge sees "Track"). That relabel is UI-only; no table, column, model, route or store key was renamed.
+
+A student is linked at **two** levels: `project_enrollments` (role `LEARNER` — the access gate) and `group_members` (the team they work in). Idea, milestones, submissions, chat and mentor all attach to the **team**.
+
+### Ownership and mentorship are orthogonal — deliberately
+
+![Ownership and mentorship are independent facts](diagrams/pm-role-orthogonality.pdf){ width=85% }
+
+| Fact | Stored as | Cardinality |
+|---|---|---|
+| "I own this track" | `project_enrollments.role = PROJECT_INCHARGE` | **one role per user per track** — `@@unique([user_id, project_track_id])` |
+| "I mentor this team" | `project_groups.mentor_id` | per team, independent |
+
+Because mentorship is an attribute of the **team** rather than a role on the **container**, "incharge who also mentors every team" is the normal case, not an exception. The code treats it that way already — `apps/api/src/routes/projects/admin-dashboard.ts:316` notes that a mentor is *"whoever is the team's `mentor_id` (role-agnostic), so an incharge acting as mentor is counted."*
+
+**The near-miss:** had mentorship been modelled as `role = PROJECT_MENTOR` in enrolments, the unique constraint would have made that overlap **impossible to express**. This is the single best example in the codebase of a modelling choice that quietly preserved a capability.
+
+> **Generalisable rule:** put a relationship on the entity it belongs to, not as a role on the container above it. Roles on a container tend to acquire uniqueness constraints; relationships on an entity don't.
+
+### Two open ambiguities worth closing
+
+- **`mentor_id` is nullable**, so "no mentor assigned yet" and "mentored by the incharge" are indistinguishable. `admin-dashboard.ts:173` already special-cases `!g.mentor_id` as "no mentor." Decide explicitly whether `null` means unassigned or implies the incharge.
+- **`mentor_id` is a single FK** — no co-mentors and no history. Reassigning a mentor silently erases the previous one, so "who reviewed this last semester" is currently unanswerable. That's a join table if it ever matters.
+
+### The surface architecture that follows from the model
+
+Because the two roles overlap, the UI is split by **job**, not by role — four surfaces, any of which one person may use in a single session:
+
+| Surface | Job | Ordered by |
+|---|---|---|
+| Track level | configure & oversee the cohort (**non-evaluative**) | config, aggregate, exceptions |
+| My Teams list | "who needs me right now?" | status, grouped by track |
+| Review Queue | "give me the next thing to review" | urgency, across all tracks |
+| Team workspace | work on one team | that team's timeline |
+
+One hard rule holds it together: **evaluation happens at team scope only — for everyone, including the incharge who mentors every team.** Full reasoning, plus the group-don't-nest and route-don't-filter decisions, in [user-experience](user-experience.md) Part II.
 
 ---
 
