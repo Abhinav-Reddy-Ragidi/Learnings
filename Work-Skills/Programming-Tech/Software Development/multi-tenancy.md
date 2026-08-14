@@ -1,6 +1,6 @@
 # Multi-Tenancy — Patterns, Enforcement, and Codebase Lessons
 
-_Last updated: 2026-08-11_
+_Last updated: 2026-08-14_
 
 **What this note is for:** a single reference on multi-tenancy — the general concepts (for interviews and for designing a new system from scratch) **and** the lessons from the production platform I work on. It is in two parts:
 
@@ -113,6 +113,105 @@ Ask these in order. The first "yes" that carries a contractual or legal obligati
 6. **What's the blast radius you can survive?** Pooled means one bad query can affect everyone.
 
 **The honest default:** start pooled, enforce at the database or ORM layer, and keep tenant→datasource resolution behind an interface so hybrid stays available.
+
+---
+
+## I.2.1 Shared-schema data modelling — the tenant boundary belongs in the data model
+
+For the **shared-schema / pooled model**, one of the most important data-modelling rules is:
+
+> **Every tenant-owned table should generally carry its own `tenant_id`, even when the tenant could theoretically be derived through a foreign-key chain.**
+
+For example:
+
+```text
+courses
+┌────┬────────────┐
+│ id │ tenant_id  │
+└────┴────────────┘
+       │
+       ↓
+course_modules
+┌────┬───────────┬────────────┐
+│ id │ course_id │ tenant_id  │
+└────┴───────────┴────────────┘
+       │
+       ↓
+lessons
+┌────┬────────────┬────────────┐
+│ id │ module_id  │ tenant_id  │
+└────┴────────────┴────────────┘
+```
+
+Even though `lessons` can theoretically determine its tenant through `module → course → tenant`, storing `lessons.tenant_id` directly gives the database a direct ownership boundary.
+
+This is especially useful for RLS. A straightforward policy can operate directly on the table:
+
+```sql
+CREATE POLICY tenant_isolation ON lessons
+USING (tenant_id = current_setting('app.tenant_id')::text);
+```
+
+without requiring the RLS policy to traverse relationships to discover the lesson's tenant.
+
+### Why duplicate the tenant key when it is derivable?
+
+It is intentional denormalization. The small amount of redundancy buys:
+
+- **simpler tenant-scoped queries**
+- **simpler RLS policies**
+- **tenant-aware indexes**
+- **easier tenant-scoped deletes and exports**
+- **simpler auditing and observability**
+- **a direct isolation boundary on every tenant-owned table**
+
+The important distinction is that **not every table needs `tenant_id`**. Genuinely global/reference tables such as `countries`, `currencies`, `languages`, or system-wide permission definitions do not belong to a tenant and therefore do not need a tenant discriminator.
+
+### `tenant_id` is the foundation, not the whole design
+
+For a shared-schema SaaS, data modelling is not *only* about adding a `tenant_id` column. The broader goal is:
+
+```text
+Multi-tenant data modelling
+│
+├── Tenant ownership
+│   └── tenant_id on tenant-owned tables
+│
+├── Relationships
+│   └── prevent cross-tenant relationships
+│
+├── Constraints
+│   └── tenant_id often participates in uniqueness rules
+│
+├── Indexes
+│   └── tenant_id is usually part of relevant indexes
+│
+├── RLS / isolation
+│   └── enforce the tenant boundary
+│
+└── Global vs tenant data
+    └── don't add tenant_id to genuinely global tables
+```
+
+For example, if email addresses only need to be unique **within a tenant**, this is usually wrong:
+
+```sql
+UNIQUE(email)
+```
+
+and this is the appropriate tenant-scoped constraint:
+
+```sql
+UNIQUE(tenant_id, email)
+```
+
+because two different tenants can legitimately have users with the same email address.
+
+### The mental model
+
+> **Every piece of tenant-owned data, relationship, uniqueness rule, query, and authorization boundary must respect the tenant boundary.**
+
+`tenant_id` is the foundation that makes that boundary explicit in a pooled/shared-schema model; RLS, constraints, indexes, and application/ORM scoping build on top of it.
 
 ---
 
