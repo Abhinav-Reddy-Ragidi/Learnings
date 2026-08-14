@@ -1,0 +1,21 @@
+// HTTP request → tenant context → transaction → PostgreSQL RLS → rows.
+digraph RLSRequestFlow {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.30;
+  ranksep=0.42;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.18,0.10"];
+  edge [color="#64748b", penwidth=1.1, arrowsize=0.6];
+
+  user [label="Thousands of users\nHTTP requests", fillcolor="#e0f2fe", color="#0369a1"];
+  api [label="API server\nAuthenticate → resolve tenant\nAbhi → VNR", fillcolor="#fef3c7", color="#a16207"];
+  pool [label="DB connection pool\nUsers do NOT each get a DB connection", fillcolor="#f1f5f9"];
+  tx [label="Transaction\nBEGIN\nSET LOCAL app.tenant_id = 'VNR'", fillcolor="#dcfce7", color="#15803d"];
+  queries [label="Multiple queries in the same transaction\nSELECT courses\nUPDATE assignments\nINSERT submission", fillcolor="#eff6ff", color="#1d4ed8"];
+  rls [label="PostgreSQL RLS\nPolicy compares row.tenant_id\nwith current transaction context", fillcolor="#fce7f3", color="#be185d"];
+  rows [label="Only VNR rows can be returned/changed", fillcolor="#dcfce7", color="#15803d"];
+  commit [label="COMMIT\ntransaction ends; SET LOCAL context ends", fillcolor="#f1f5f9"];
+
+  user -> api -> pool -> tx -> queries -> rls -> rows -> commit;
+}
