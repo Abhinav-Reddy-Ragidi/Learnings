@@ -418,6 +418,200 @@ For cross-tenant requests, **prefer 404 over 403**. A 403 on tenant B's resource
 
 The mitigations are dull and effective: allow-list writable fields, scope every lookup by tenant *and* id, compose guards rather than hand-rolling checks, and fail the build for routes without one.
 
+### The models decomposed — what levels 2–4 actually are
+
+The spectrum table above ranks models by expressiveness. This is what each one *is*, because the names get used loosely.
+
+| Model | Decision reached by | Tables |
+|---|---|---|
+| **RBAC** | `user → role → permission` — **mediated** | 5: `users`, `roles`, `permissions`, `user_roles`, `role_permissions` |
+| **PBAC** | `user → permission` — **direct** | 3: `users`, `permissions`, `user_permissions` |
+| **ReBAC** | either of those, **attached to an object** | the same, plus an object column on the grant |
+
+**The test that separates RBAC from PBAC:** *can a user hold a permission without going through a role?* No → RBAC. Yes → PBAC. A `permissions` **table** does not make something PBAC — permissions are what roles grant. The *direct* grant is what makes it PBAC.
+
+Why roles exist at all is row count: 500 staff × 20 permissions is 10,000 direct grants, versus 500 `user_roles` + 60 `role_permissions`. And "professors may now publish" becomes one insert instead of hundreds of updates.
+
+**ReBAC is not a separate family.** Add an object column to `user_roles` and you have object-scoped RBAC — which *is* ReBAC, the direct kind. Zanzibar's storage is nothing but tuples of that shape (`course:42#professor@user:u_7`). RBAC says the grant goes *through a role*; ReBAC says it *attaches to an object*. One assignment row does both, which is why it has two names depending on which half you point at.
+
+What makes ReBAC worth having is **derivation** — computing a permission by walking to a related object:
+
+| Level | Capability | Needs |
+|---|---|---|
+| 0 | direct tuple only | one lookup |
+| **1** | **one-hop derivation** (child → root) | one extra lookup |
+| 2 | multi-hop / recursive (nested folders) | recursive queries |
+| 3 | relation composition, usersets as subjects | a policy engine |
+
+> **Level 1 suffices whenever the root's id is denormalised onto every descendant** — then depth costs one hop regardless of how deep the *content* nests. Content nesting and authorization nesting are different things.
+
+You need level 2+, and therefore a real engine (SpiceDB, OpenFGA, Oso), only when you **cannot** denormalise the root onto the row — re-parentable hierarchies, or grants targeting nested groups. Being able to say why you *didn't* reach for one is the better answer.
+
+### The grant is the row
+
+```
+course_instructor_assignments
+  course_id      "42"          ← the grant's POSITION
+  instructor_id  "u_7"         ← the SUBJECT
+  role           "PROFESSOR"   ← what it grants, via the role→actions map
+  permissions    null          ← exceptions for this person on this object; normally null
+```
+
+Read it as a sentence: *"u_7 is granted PROFESSOR at course:42."* One row, four names depending on who is speaking — **grant** (authorization), **assignment / enrolment** (the product), **relationship tuple** (ReBAC/Zanzibar), **role binding** (Azure and GCP IAM). The terminology feels slippery because four communities named the same construct.
+
+**Enrolling someone *is* writing the grant, and where you write it decides the scope.** Tenant-level and object-level are not two systems — they are the same row with a different position column.
+
+RBAC and PBAC coexist on that row deliberately: `role` carries the common bundle, `permissions` carries the exception. **Within-row overrides are fine; cross-scope denies are not.** An override modifies that one grant locally. A tenant-wide grant denied at one object means no grant can be read on its own — which is what makes AWS IAM's explicit `Deny` the hardest part of IAM. Keep `permissions` null on ~95% of rows; past that, the role set is wrong.
+
+### Scope is tree containment, not a magnitude comparison
+
+Grant and object both sit in the same hierarchy:
+
+```
+                org → tenant → unit → object
+```
+
+> **A grant applies if its position is an ancestor of, or equal to, the object's position.**
+
+Two positions at the same depth in different branches are **incomparable** — a `>=` mental model lets a `unit:ece` grant through on a `unit:cse` object. That request passes the role check and the tenant check and is still wrong.
+
+**This unifies with §I.3:** tenant isolation *is* this containment test applied at the root. `where: { organisation_id: ctx.orgId }` is a containment check at the org level. Same mechanism, different depth — which is why the boundary between "isolation" and "authorization" keeps blurring.
+
+The check ORs the containing scopes — one query, not a walk:
+
+```
+OR: [ {scope: TENANT, id: ctx.tenantId},
+      {scope: UNIT,   id: object.unit_id},
+      {scope: OBJECT, id: object.id} ]
+```
+
+Grants are **additive**: the most permissive applicable grant wins. Deferring deny-override is reversible — a nullable column plus one clause, no migration. **Unify several grant stores into one `permission_grants(user, permission, scope_type, scope_id)` table when you need a *third* scope level**; two stores is manageable, three is the signal.
+
+One constraint learned the hard way: **you may only denormalise an ancestor onto a row when that ancestor is fixed for the row.** A child's `course_id` never changes, so denormalising it pays forever. A course's *unit* can differ per tenant when course↔tenant assignment is its own table — so it cannot live on the course row; resolve it once in the loader instead.
+
+### Fine-grained means *(subject, action, object)*
+
+"Fine-grained" is a **property — granularity — not a fifth model.**
+
+```
+coarse          may INSTRUCTORS grade?              (kind,    action)
+scoped          may INSTRUCTORS grade course 42?    (kind,    action, object)
+fine-grained    may u_7 grade THIS submission?      (subject, action, object)
+```
+
+> **Fine-grained access control = ReBAC (which object) + PBAC (which action).** Combining models, not choosing a different one. The industry acronym is FGA.
+
+One-line test: **swap the object — does the answer change?** If it's the same for every instance, it's coarse however the grants are stored.
+
+And a distinction that trips people up — these are two different triples:
+
+```
+STORED   (subject, relation, object)     u_7 is PROFESSOR of course_42
+ASKED    (subject, action,   object)     may u_7 GRADE submission_9?
+```
+
+Different middle word. Authorization turns the first into an answer to the second, via the role→actions map and the parent traversal. Zanzibar has both too: tuples store relations, `Check()` asks about permissions, userset rewrites bridge them. **You store relations; you ask about actions.** Otherwise you'd need a stored row per user per action per object.
+
+### Which resources need an assignment table
+
+Three ownership categories, and only one of them needs a table:
+
+| Category | Ownership expressed by | Table? | Examples |
+|---|---|---|---|
+| **Assigned** | an assignment row | ✅ | courses, tracks, exams, activities |
+| **User-owned** | a `user_id` column on the record | ❌ | resumes, interview sessions, personalised content |
+| **Tenant-owned** | a `tenant_id` column + tenant permission | ❌ | question banks, templates, job listings |
+
+> **An assignment table exists only when *different people* get *different instances*. If the record carries its owner, the column is the grant.**
+
+Within the assigned category, classify every model once:
+
+| Bucket | Test | Policy? |
+|---|---|---|
+| **Root** | an assignment table references it **together with a `user_id`** | ✅ one |
+| **Child** | carries a root's id; access follows the root | ❌ inherits |
+| **Relationship table** | records which user holds which role on a root | ❌ it is the loader's *input* |
+
+**Find every root by grepping for tables carrying both `<resource>_id` and `user_id`.** A child becomes a root the moment such a table points at it. Two rules prevent misclassification: a foreign key to a root does **not** mean the root owns it (ask *who grants access*, not *which ids does it carry*), and **variants are columns, not resource types** — MCQ vs CODING is one resource with a `type` column; add a resource type only when the *ownership* differs.
+
+Done properly this collapses hard: a ~30-model product typically needs **three** policies — root-owned content, user-owned artifacts, and one sub-resource with genuine per-instance assignment.
+
+For user-owned records the policy is two lines — `record.user_id === ctx.userId` OR a tenant-scoped staff grant. **Decide the staff half deliberately per model:** attempt history probably yes, private study material probably no. Defaulting is how instructors silently gain access to every learner's personal data.
+
+### Where each check can live — and why the list is short
+
+Gate 2 of the three-gate contract decomposes, and *when information becomes available* decides where each piece runs:
+
+```
+MIDDLEWARE   has: request context + the URL.   has NOT: any database record
+SERVICE      has: the record, once loaded
+```
+
+> **A route-level check may only use what is in the request context plus the URL.**
+
+So route-level authorization is permanently limited to **three** checks — **role**, **entitlement**, **permission grant** — and everything object-specific *must* live in the service. That is structural, not stylistic: middleware cannot answer "is this *your* course" because no course has been fetched yet.
+
+This is also why **IDOR** (§ failure modes above) is a service-layer bug, not a middleware one. No amount of guard composition prevents it.
+
+Extending §"Enforce at one server-side chokepoint": the chokepoint should be **one parameterised call, not one guard per product**. Every mature library converged on this — Casbin `enforce(sub, obj, act)`, CASL `ability.can()`, Oso `authorize()`, Pundit `authorize @record`, Spring `@PreAuthorize`. The policy data varies; the entry point doesn't. Two guards running the same query is how a fix gets applied to only one of them.
+
+Shape that works: `authorize(action, resourceType, id)` which loads the record tenant-scoped, resolves the relationship, applies the policy, and **returns the record** — so it isn't fetched twice, and the record operated on is the one that was authorized. Fold the entitlement check into the same call: two separate checks are two chances to do only one.
+
+### Collections need a filter, not a check
+
+`authorize()` works on one record. A list endpoint has none — so every policy needs a second function returning a **query fragment**:
+
+```
+can(action, record)   → boolean            for one record
+scopeFor(action)      → a WHERE fragment    for collections
+```
+
+Without the second, every "list all X" endpoint gets a hand-written filter, written once per feature by whoever had the ticket. **That is where disclosure defects actually concentrate** — more than on detail endpoints, which get more scrutiny. CASL calls this `accessibleBy`; keeping both in one file is what keeps them consistent.
+
+### The UI contract — capabilities, not rules
+
+The frontend must never re-implement the rules; it drifts silently. It receives **computed capabilities**.
+
+Navigation asks a third kind of question, and `scopeFor()` answers it for free:
+
+```
+per-object   may I manage track_7?      → authorize()
+aggregate    may I manage ANY track?    → EXISTS over scopeFor()   ← renders the nav item
+```
+
+Two halves with different lifetimes:
+
+| | Shape | Lifetime |
+|---|---|---|
+| **Global capability set** | one fetch at app load → client store | session |
+| **Per-object capabilities** | `_can: ["view","manage"]` returned with the record | that request |
+
+The test for which bucket: **is the answer the same regardless of which record is on screen?** Yes → global. No → per-object. Per-object is nearly free, since the relationship was already loaded to authorize the read.
+
+Refetch on **tenant switch** (the whole context changed — the one people forget), on login, and treat a **403 as a cache-invalidation signal**. If the global map passes ~50 keys, per-object questions have leaked into it.
+
+> **Frontend gating is UX. Backend gating is security.** Both are required and they are not the same job — this is §"Enforce at one server-side chokepoint" stated from the client side.
+
+### The tests that make this hold
+
+Beyond §I.7's isolation cases:
+
+```
+resource registry is complete      every resource type has a loader, a policy, an entitlement key
+routes declare a resource          any route with an :id param must name one, or be explicitly public
+policy matrix                      role × action × relationship → expected, as pure functions, no DB
+```
+
+The third is the cheapest high-value suite in the system — no database, milliseconds, and it documents the rules better than prose. **The case nobody writes, and the only one that catches IDOR:** *403 — instructor NOT assigned to THIS record.*
+
+Strongest available option: brand the authorized record so skipping the check is a **compile error**.
+
+```ts
+type Authorized<T> = T & { readonly [brand]: "authorized" };
+```
+
+Mutating methods accept only `Authorized<Course>`. Since `authorize()` is the only function that can produce that type, updating an unauthorized record stops compiling — the top rung of the enforcement ladder in §II.6.2.
+
 ---
 
 ## I.6 Operations, per model — what interviews probe
