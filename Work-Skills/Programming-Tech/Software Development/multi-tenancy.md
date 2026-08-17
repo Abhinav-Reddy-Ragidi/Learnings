@@ -4,7 +4,7 @@ _Last updated: 2026-08-14_
 
 **What this note is for:** a single reference on multi-tenancy — the general concepts (for interviews and for designing a new system from scratch) **and** the lessons from the production platform I work on. It is in two parts:
 
-- **Part I — Patterns.** The five isolation models, the enforcement layers, where leaks happen, operations, testing, and prepared interview answers. Concept-first, system-agnostic.
+- **Part I — Patterns.** The five isolation models, shared-schema data modelling, **authentication and authorization** (§I.5.1–I.5.2), the enforcement layers, where leaks happen, operations, testing, and prepared interview answers. Concept-first, system-agnostic.
 - **Part II — Codebase lessons.** A self-review of a production multi-tenant B2B SaaS (Turborepo + pnpm monorepo; Express + Prisma + CockroachDB backend, Next.js frontend, feature-flagged modules, Firebase auth). What I built, the mistakes, the tradeoffs I can name and defend, and the improvement roadmap. Client/employer names are scrubbed.
 
 **Companion note:** [eng-labs-platform](eng-labs-platform.md) is the source of truth for *what the system is* — architecture, diagrams, tech stack, current figures. The actionable file-level findings live in the project repo's own review doc (`documentation_personal/api-development-quality-report.md`), kept out of this personal note deliberately.
@@ -279,6 +279,145 @@ A checklist people forget — the data layer is maybe half the work:
 | **Search indexes** | tenant as a mandatory filter, or an index per tenant |
 | **Data lifecycle** | per-tenant export and hard-delete (GDPR); hardest in the pooled model, so design it early |
 
+The first two rows carry enough weight to deserve their own sections — §I.5.1 and §I.5.2.
+
+---
+
+## I.5.1 Authentication — establishing *who*, and *which tenant*
+
+**Authentication answers "who is this request from?" Authorization answers "may they do this?"** They are different questions, run in that order, and conflating them is how you get a system where being logged in is mistaken for being allowed.
+
+In a single-tenant app, authentication answers one question. In a multi-tenant system it must answer **three**, and the third is the one people miss:
+
+| # | Question | Failure if skipped |
+|---|---|---|
+| 1 | Who is this user? | impersonation |
+| 2 | Which tenant is this request for? | queries scope to the wrong tenant, or none |
+| 3 | **Is this user actually entitled to that tenant?** | **cross-tenant breach — the user simply asks for tenant B** |
+
+Question 3 is the multi-tenant-specific one. A request that says "I am Alice, acting in tenant B" must be checked against Alice's actual tenant memberships — every time, server-side.
+
+### Session vs token
+
+| | Server session | Token (JWT) |
+|---|---|---|
+| State | stored server-side, cookie holds an opaque id | self-contained, signed, no server state |
+| Revocation | **immediate** — delete the session | **hard** — valid until it expires |
+| Scaling | needs shared session store | stateless, scales trivially |
+| Cross-service / cross-domain | awkward | natural |
+| Best for | classic web apps, one domain | APIs, mobile, multiple apps/domains |
+
+The trade in one line: **JWTs buy statelessness and pay for it in revocation.** Everything else about token design is managing that debt.
+
+### Managing the revocation debt
+
+1. **Short-lived access token + long-lived refresh token.** Access token minutes-to-an-hour; refresh token days, stored server-side so it *can* be revoked. This is the standard answer.
+2. **A token version / `token_generation` column on the user.** Bump it on password change or forced logout; reject tokens carrying an older version. Cheap, one indexed read.
+3. **A denylist** of revoked jti values until natural expiry. Reintroduces state, so use it only for the genuinely urgent case.
+
+### Where does the tenant come from?
+
+| Source | Trustworthy? | Notes |
+|---|---|---|
+| **Signed token claim** | ✅ yes | the tenant is inside the signature — tampering invalidates it |
+| Subdomain (`acme.app.com`) | ⚠️ only after mapping | resolve to a tenant id, then verify membership |
+| Path prefix (`/t/acme/...`) | ⚠️ same | readable and shareable; still must be verified |
+| Custom domain | ⚠️ same | needs a domain→tenant table |
+| **Plain header / query param** | ❌ **never alone** | a client can write anything |
+
+> **The rule:** pick **one** canonical source, put it in the signed token, and treat every other source as a *request* to switch context — which is validated, not obeyed.
+
+### Context switching — how a user with several tenants moves between them
+
+Do **not** let the client pass `?tenant=B`. The correct flow:
+
+```
+client asks to switch to tenant B
+   → server checks membership: does this user have a mapping to B?
+   → yes → mint a NEW token carrying tenantId = B
+   → client uses the new token; every later request is self-describing
+```
+
+The tenant now travels inside the signature. No downstream handler has to re-validate, and no header can override it.
+
+### Cross-app SSO — moving an authenticated user between your own apps
+
+When one product spans several apps/domains, don't share the primary session. Mint a **short-lived, single-purpose bridge token**:
+
+- separate secret from the main auth secret (blast-radius containment)
+- very short TTL (minutes) — it exists only to survive one redirect
+- **an allow-list of redirect hosts**, enforced server-side, HTTPS only — an open redirect here hands your token to an attacker
+- exchanged immediately at the destination for that app's own session/token
+
+### Multiple identity providers
+
+Real systems accumulate them: an IdP (Firebase/Auth0/Okta) for humans, self-issued JWTs for service-to-service or for apps you also own. Verify in a defined order and make the fallback explicit. Two rules: **each provider gets its own verification path and its own secret/keys**, and the code must never treat "provider A rejected it" as "the token is invalid" until every provider has been tried.
+
+---
+
+## I.5.2 Authorization — deciding *what they may do*
+
+![Authorization models, coarse to fine](diagrams/permission-model-spectrum.pdf){ width=60% }
+
+### Pick the coarsest model that expresses your real rules
+
+| Level | Model | Good for | Cost |
+|---|---|---|---|
+| 1 | **Global role enum** — `user.type = ADMIN` | small products, few rules | can't express per-context differences |
+| 2 | **Scoped role (RBAC per context)** — role per tenant/project | most B2B SaaS | need to know *which* scope a screen means |
+| 3 | **Role + permission map** — a JSON/table of granular grants | fine-grained product tiers | untyped, hard to audit, easy to drift |
+| 4 | **ABAC / ReBAC** — decide from attributes or relationship tuples | sharing graphs, complex hierarchies | needs a policy engine; hardest to test and explain |
+
+Each level up adds expressiveness and costs auditability. Most teams need level 2, adopt level 3 for entitlements, and should reach level 4 only when the rules are genuinely relational ("can edit if they're on the team that owns the parent folder").
+
+### The three-gate contract
+
+![The three-gate request contract](diagrams/three-gate.pdf){ width=90% }
+
+Every protected route passes three gates, composed as middleware, in order:
+
+```
+authentication  → is there a valid identity?          401 if not
+authorization   → does this identity have the role?   403 if not
+entitlement     → has this tenant bought the feature? 403 if not
+```
+
+Keeping them separate means each has one reason to fail and one place to fix.
+
+### Enforce at one server-side chokepoint
+
+- **The server is the enforcement boundary. The UI is a hint.** Hiding a button while the endpoint stays open is a vulnerability with a polite face.
+- **A URL prefix is not protection.** `/admin/*` is a naming convention, not a guard.
+- **Fail closed.** Missing context, unknown role, unreadable permission blob → deny. Never "if we can't tell, allow it."
+- **Make it structural, then lint it.** A convention that a route "should" have a guard, with nothing failing the build, is a wish (§II.6.2).
+
+### Authorization is tenant-scoped too
+
+An easy and dangerous mistake: treating a role as global when it is per-tenant. Being ADMIN of tenant A must confer nothing in tenant B. Every permission lookup must be keyed by `(user, tenant)` — not by user alone.
+
+### 401 vs 403 vs 404 — and what each leaks
+
+| Response | Means | Leaks |
+|---|---|---|
+| **401** | not authenticated | nothing |
+| **403** | authenticated, not permitted | **that the resource exists** |
+| **404** | not found *or* not yours | nothing |
+
+For cross-tenant requests, **prefer 404 over 403**. A 403 on tenant B's resource confirms the id is real, which turns id enumeration into a discovery tool. Use 403 only inside a tenant the user can already see.
+
+### The failure modes that actually happen
+
+| Mode | What it looks like |
+|---|---|
+| **IDOR** | `GET /courses/:id` with no ownership check — a valid id from any tenant works |
+| **Mass assignment / privilege escalation** | `data: req.body` lets a caller set `role: "SUPER_ADMIN"` on themselves |
+| **UI-as-security** | button hidden, endpoint open |
+| **Prefix-as-security** | `/admin/*` assumed protected |
+| **Global role in a scoped world** | tenant-A admin acts in tenant B |
+| **Unguarded new route** | the convention was documented, nothing enforced it |
+
+The mitigations are dull and effective: allow-list writable fields, scope every lookup by tenant *and* id, compose guards rather than hand-rolling checks, and fail the build for routes without one.
+
 ---
 
 ## I.6 Operations, per model — what interviews probe
@@ -310,6 +449,22 @@ Cases 1–3 are "triangle coverage." **Case 4 is the one that catches breaches**
 
 Also worth having: a repository-level test that a query built without tenant context **throws** rather than returning everything. Fail closed, loudly.
 
+### The auth cases worth adding
+
+Beyond the four above, these catch the failure modes in §I.5.1–I.5.2 and are equally cheap:
+
+| Test | Expect | Catches |
+|---|---|---|
+| Expired token | 401 | clock/verification bugs |
+| Token signed with the wrong secret | 401 | accepting unverified claims |
+| Valid token, **tenant claim swapped** to a tenant the user isn't in | 401/404 | trusting the claim without a membership check |
+| Tenant passed as a **header/query param** while the token says otherwise | token wins | header override — the classic breach |
+| Write endpoint sent an extra `role` / `is_admin` field | field ignored | mass-assignment privilege escalation |
+| Cross-tenant resource by id | **404, not 403** | existence leaking via status code |
+| Route registered with no guard | **CI fails** | the unguarded-new-route mode |
+
+That last row is a lint rule, not a test — and it's the only one that prevents the failure rather than detecting it.
+
 ---
 
 ## I.8 Compact interview answers
@@ -325,6 +480,15 @@ Also worth having: a repository-level test that a query built without tenant con
 
 **"How do you migrate 500 tenant databases?"**
 > Backward-compatible changes only, so app and schema versions can differ during rollout — add nullable, dual-write, backfill, switch reads, then clean up. And a migration runner that's idempotent, resumable, batched, and tracks state per tenant, so a failure on tenant 213 doesn't block the other 499 or force a full re-run.
+
+**"How does authentication work in a multi-tenant system?"**
+> It has to answer three questions, not one: who the user is, which tenant the request is for, and whether that user is actually entitled to that tenant. The third is the one people skip and it's where the breach lives. I'd carry the tenant as a claim inside the signed token rather than a header or query param, so it can't be tampered with and downstream handlers don't have to re-validate. Switching tenants means re-minting the token after a server-side membership check — never obeying a client-supplied tenant id. And because JWTs trade revocation for statelessness, I'd pair a short access token with a server-side refresh token, plus a token-version column so a forced logout invalidates everything immediately.
+
+**"How would you design authorization?"**
+> Pick the coarsest model that expresses the real rules — usually scoped RBAC, a role per tenant rather than a global one, because being admin of tenant A must confer nothing in tenant B. Then enforce at one composed chokepoint: authentication, then authorization, then feature entitlement, as three separate gates so each has one reason to fail. The server is the boundary; hidden UI is a hint, not a control. Two details I'd insist on: fail closed when context is missing, and return 404 rather than 403 for another tenant's resource, because a 403 confirms the id is real and turns enumeration into discovery.
+
+**"Tell me about a security bug you shipped."**
+> We relied on a URL prefix for protection — `/admin/*` routes were assumed guarded because of the path. The auth middleware populated the request context but never rejected, so protection depended on each route remembering to add a role guard, and most mutating routes hadn't. A LEARNER-role account deleted a course through one of them. Three things came out of it: the middleware authenticates but `requireAuth()` is what rejects, so enforcement is explicit; role guards went from near-zero to widely applied; and the real lesson — a convention nothing enforces is a wish, so the fix isn't documentation, it's failing CI when a route registers without a guard.
 
 ---
 
@@ -343,6 +507,20 @@ Also worth having: a repository-level test that a query built without tenant con
 - [ ] Per-tenant export and hard-delete designed before you need them.
 - [ ] Per-tenant quotas/rate limits, so no tenant can exhaust shared capacity.
 - [ ] Feature entitlement separated from platform kill-switch.
+
+**Authentication & authorization (§I.5.1–I.5.2):**
+
+- [ ] Tenant travels as a **signed token claim**, never a bare header or query param.
+- [ ] Switching tenant re-mints the token **after** a server-side membership check.
+- [ ] Short access token + revocable refresh token; a token-version column for forced logout.
+- [ ] Each identity provider has its own verification path and its own secret/keys.
+- [ ] Cross-app SSO uses a separate short-lived secret **and a redirect host allow-list**.
+- [ ] Permission lookups keyed by `(user, tenant)` — no global roles in a scoped world.
+- [ ] Three gates composed as middleware: authentication → authorization → entitlement.
+- [ ] Fail closed on missing/unreadable context.
+- [ ] Writable fields allow-listed; never `data: req.body`.
+- [ ] **404, not 403**, for another tenant's resource.
+- [ ] CI fails when a route registers without a guard.
 
 ---
 ---
@@ -389,6 +567,80 @@ git grep -oh 'requireRole('  $m -- 'apps/api/src/**' | wc -l             # guard
 git grep -l  'organisation_id' $m -- 'apps/api/src/**' | wc -l           # scope-leak surface
 git ls-tree -r --name-only $m | grep -i legacy                           # unfinished cutovers
 ```
+
+---
+
+## II.0.5 The auth implementation, end to end
+
+The concrete realisation of §I.5.1–I.5.2 in this codebase. Measured on `main`.
+
+### The authentication path
+
+![Token sources, dual verification, context assembly](diagrams/auth-token-flow.pdf){ width=70% }
+
+**Token source — header beats cookie.** The middleware reads `req.cookies.auth_token`, then overrides it with `Authorization: Bearer` if present. The comment in `middleware/auth.ts` explains why: a header is an *explicit client action* and "works better for context switching." The cookie is the ambient session; the header is a deliberate "act as this instead."
+
+**Two providers, tried in order** (`validateToken` in `packages/helpers`):
+
+1. **Custom backend JWT** — `jwt.verify(token, secret, { algorithms: ["HS256"] })`, secret fetched from **GCP Secret Manager**. Pinning the algorithm matters: omitting it is how `alg: none` attacks work.
+2. **Firebase** — falls through to `fAuth.verifyIdToken()`.
+
+On success it loads the user plus `userMappings` (with tenant + features), organisation, and course enrolments. This is §I.5.1's "multiple identity providers" in practice: humans authenticate via Firebase; tokens the platform mints itself (mock-OA, resume bridge) use the backend JWT path.
+
+**Context assembly — the precedence rules are the design:**
+
+| Field | Resolution | Why |
+|---|---|---|
+| `tenantId` | `decoded.tenantId ?? user.tenant_id` | **the token wins — this is how context switching works** |
+| `unitId` | `x-unit-id` header → `decoded.unitId` → `null` | a header is allowed here because a unit is *within* the already-verified tenant |
+| `features` | env flags **merged with** `entity_features` rows for the resolved tenant | so `requireFeature()` works for DB-stored flags, not just env ones |
+| `role` | `user.type` | the global role — see the three-role caveat below |
+
+**The middleware never rejects.** Every path ends in `next()` — no token, bad token, thrown error. It *authenticates*; `requireAuth()` is what returns 401. That separation is deliberate and correct, and it is also exactly what made the May incident possible when routes forgot the guard.
+
+### The authorization surface
+
+| Guard | Call sites | Checks |
+|---|---:|---|
+| `requireAuth()` | 296 | a valid `req.context` exists |
+| `checkFeature(key)` | 162 | both feature gates, via DB query |
+| `requireFeature(key)` | 47 | feature flag already on `req.context.features` |
+| `requireRole(...roles)` | 42 | role membership |
+| `requireModuleAdminAccess(module, path?)` | 38 | module admin + nested JSON permission |
+| `requirePlacementPermission(...keys)` | 4 | granular permission keys |
+
+**Three role systems coexist** — and knowing *which one a screen means* is a real source of bugs:
+
+| System | Values | Scope |
+|---|---|---|
+| Platform role (`users.type`) | `ADMIN` · `INSTRUCTOR` · `LEARNER` · `COORDINATOR` | global to the user |
+| Per-track role (`project_enrollments.role`) | `PROJECT_INCHARGE` · `PROJECT_MENTOR` · `LEARNER` | **one per user per track** |
+| Module access (`project_mentor_access.pm_role`) | `PM_ADMIN` · `PM_MEMBER` | per tenant + unit subtree |
+
+Level 2 on the §I.5.2 spectrum, with level 3 layered on: `user_mappings.permissions` is a JSON blob read by dot-path — `requireModuleAdminAccess("placements", "services.job_postings")` walks it at runtime with explicit `__proto__` / `constructor` / `prototype` guards. Deep module, genuinely well-built; the cost is that the path is a string nothing type-checks, so a typo fails as a 403 in production.
+
+### Cross-app SSO
+
+Two token-minting paths, both matching the §I.5.1 bridge pattern:
+
+- **Resume bridge** (`routes/auth/bridge.ts`) — a bridge JWT with a **10-minute TTL**, signed with a **separate `BRIDGE_JWT_SECRET`**, and a redirect **host allow-list** (`polymathai.co` or a subdomain, HTTPS only) with a logged rejection otherwise. Textbook.
+- **Mock-OA** (`services/oa-jwt.service.ts`) — mints an **access + refresh pair** carrying `user_id`, `tenant_id`, `org_id`, extracted into one service so both callers sign identically.
+
+### Honest gaps
+
+| Gap | Detail |
+|---|---|
+| **Failure masking** | verification errors are logged and swallowed; a forged token, an expired token, and a Secret Manager outage all produce an anonymous request. A 401 and a 503 are very different facts. |
+| **No revocation path** | no token-version column, no denylist. A leaked backend JWT is valid until it expires. |
+| **The legacy twin** | `req.user_id` / `req.organisation_id` / `req.tenantId` are set unconditionally alongside `req.context` — and legacy `req.tenantId` uses `user.tenant_id`, **not** the switched one. After a context switch the two disagree. Any code still reading the legacy field scopes to the wrong tenant. |
+| **Three feature-gate mechanisms** | `checkFeature` (162), `requireFeature` (47), `FeatureService` (16) — see §II.2.3. |
+| **Guards aren't enforced by tooling** | 42 `requireRole` call sites against 586 endpoints. Nothing fails the build for an unguarded route. |
+
+### The incident worth remembering
+
+**2026-05-15.** A `LEARNER`-role account deleted a course through a mutating `/admin/*` route. The chain: the middleware populated context but didn't reject → the `/admin/*` prefix was assumed to be protection → most mutating routes had no role check.
+
+Three §I.5.2 failure modes in one event — *prefix-as-security*, *unguarded new route*, and *authenticated mistaken for authorised*. Guard adoption has improved materially since (§II.1.5), but the structural fix — **CI failing on a route with no guard** — is still open, which is why this is a lesson and not yet a closed item.
 
 ---
 

@@ -1,0 +1,55 @@
+// Authentication path: two token sources, two verification providers, one
+// assembled context. Note the middleware NEVER rejects — it only populates.
+digraph AuthTokenFlow {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.25;
+  ranksep=0.38;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.15,0.08"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=10.5, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  subgraph cluster_src {
+    label="1 · Token source  —  header wins";
+    fillcolor="#eff6ff";
+    ck  [label="cookie: auth_token", fillcolor="#dbeafe"];
+    hd  [label="Authorization: Bearer <token>\nexplicit client action → overrides cookie", fillcolor="#bfdbfe", color="#1d4ed8"];
+  }
+
+  subgraph cluster_vfy {
+    label="2 · validateToken()  —  two providers, tried in order";
+    fillcolor="#f0fdf4";
+    j1 [label="a) custom backend JWT\njwt.verify(HS256, getJwtSecret())\nsecret from GCP Secret Manager", fillcolor="#dcfce7"];
+    j2 [label="b) fallback: Firebase\nfAuth.verifyIdToken()", fillcolor="#dcfce7"];
+    ld [label="load user + userMappings + organisation\n+ course enrolments", fillcolor="#eafaf1"];
+    j1 -> ld [label=" ok"];
+    j2 -> ld [label=" ok"];
+  }
+
+  subgraph cluster_ctx {
+    label="3 · req.context assembled";
+    fillcolor="#fefce8";
+    cx [label="{ userId, uid, orgId, tenantId, unitId,\n  role, accessScope, features }", fillcolor="#fef9c3"];
+    pr [label="tenantId = decoded.tenantId ?? user.tenant_id\l           ← token wins = context switch\lunitId   = x-unit-id header ?? decoded.unitId ?? null\lfeatures = env flags + entity_features rows (DB)\l", fillcolor="#fefce8"];
+    cx -> pr [style=invis];
+    { rank=same; cx; pr; }
+  }
+
+  subgraph cluster_leg {
+    label="4 · legacy twin  —  set unconditionally, CAN DISAGREE";
+    fillcolor="#fef2f2";
+    lg [label="req.user_id · req.organisation_id · req.user\nreq.tenantId = user.tenant_id  (NOT the switched one)", fillcolor="#fee2e2", color="#b91c1c"];
+  }
+
+  nx [label="next()  —  ALWAYS called, even with no/invalid token.\nThe middleware authenticates; requireAuth() is what REJECTS.",
+      fillcolor="#f3e8ff", color="#7e22ce", penwidth=1.5];
+
+  ck -> j1;
+  hd -> j1;
+  j1 -> j2 [label=" not a backend token", style=dashed];
+  ld -> cx;
+  pr -> lg;
+  lg -> nx;
+}

@@ -1,0 +1,32 @@
+// Authorization models, coarse to fine. Each level adds expressiveness and
+// costs clarity; pick the coarsest one that expresses your real rules.
+digraph PermissionSpectrum {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.20;
+  ranksep=0.30;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.16,0.10", width=4.5];
+  edge [color="#94a3b8", penwidth=1.1, arrowsize=0.55];
+  graph [fontname="Helvetica", fontsize=10.5, labeljust="l",
+         style="rounded,filled", color="#cbd5e1"];
+
+  top [shape=plaintext, fillcolor="transparent", fontsize=9, fontcolor="#15803d",
+       label="coarsest  ·  easiest to reason about  ·  least expressive"];
+
+  l1 [label="1 · GLOBAL ROLE ENUM\nusers.type = ADMIN | INSTRUCTOR | LEARNER\n\"what am I in this product?\"", fillcolor="#dcfce7", color="#15803d"];
+  l2 [label="2 · SCOPED ROLE  (RBAC per context)\nrole per tenant / per track\n\"what am I HERE?\"", fillcolor="#e8f7e4"];
+  l3 [label="3 · ROLE + PERMISSION MAP\nuser_mappings.permissions JSON,\nread by dot-path e.g. placements.services.job_postings", fillcolor="#fef9c3", color="#a16207"];
+  l4 [label="4 · ATTRIBUTE / RELATIONSHIP BASED\nABAC: decide from attributes of user+resource+context\nReBAC: relationship tuples (Zanzibar-style)", fillcolor="#fed7aa", color="#c2410c"];
+
+  bot [shape=plaintext, fillcolor="transparent", fontsize=9, fontcolor="#c2410c",
+       label="finest  ·  most expressive  ·  hardest to audit, test and explain"];
+
+  note [shape=note, fillcolor="#ffffff", color="#94a3b8", fontsize=8.5, width=0,
+        label="This platform sits at 2–3 and uses all three at once:\nglobal role, per-track role, and a permissions JSON.\nThree systems is the cost; check WHICH one a screen means."];
+
+  top -> l1 [style=invis];
+  l1 -> l2 -> l3 -> l4;
+  l4 -> bot [style=invis];
+  bot -> note [style=invis];
+}
