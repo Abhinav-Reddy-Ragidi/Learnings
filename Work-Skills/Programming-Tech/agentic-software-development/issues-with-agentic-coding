@@ -16,13 +16,17 @@ standing to comeuop with similar decisions anytime in the future.
 Ensure all the required skills are there and proper skills are there for every work. And proper documentation of every feature so it has a proper context of what we are doing and how we have done it \
 so this is inline with us.
 
+One more issue i have observed it does not follow the standard patterns like designing the api client(lib folder) which is responsible for making the calls to the backend apis to get the required 
+data. It rather make the components to call the api directly from there - which is a leakage of logic. Its not obvious that api calls will be made from only api client - if it can be called from anywhere its confusing
 
 Backend: 
 
-Even in backend it sometimes make the same issues like below we need to resolve the issues.
+Even in backend it sometimes make the same issues like below we need to resolve the issues. 
 
-Example: if we want the controller - service - repository structure ensure this is followed everytime and not missed anytime.
+Example: if we want the controller - service - repository structure ensure this is followed everytime and not missed anytime. Due to the lack of this it is making the direct calls from the 
+controller to the database which is actually not correct.
 
+This is not secure way and also not obvious that all db calls will be made from certain place like repository.
 
 Database:
 
