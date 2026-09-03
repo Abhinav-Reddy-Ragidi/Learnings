@@ -1,0 +1,24 @@
+// How a private (--no-allow-unauthenticated) Cloud Run service actually gets called.
+digraph IamInvokerFlow {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.4;
+  ranksep=0.4;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.14,0.1"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8.5, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=10.5];
+
+  sa    [label="apps/api's own service account", fillcolor="#dbeafe"];
+  mint  [label="mints a Google-signed OIDC ID token\n(audience = guide-agent URL)", fillcolor="#dbeafe"];
+  call  [label="calls guide-agent with\nAuthorization: Bearer <token>", fillcolor="#dbeafe"];
+  front [label="Cloud Run front door\n(Google-managed, runs BEFORE your container starts)", fillcolor="#fde68a", penwidth=1.6];
+  check [label="checks token signature + IAM policy:\ndoes this SA have roles/run.invoker on guide-agent?", fillcolor="#fde68a"];
+  ok    [label="✓ forwarded to the container", fillcolor="#dcfce7"];
+  deny  [label="✗ 403 — rejected,\napp code never runs", fillcolor="#fee2e2", color="#dc2626"];
+
+  sa -> mint -> call -> front -> check;
+  { rank=same; ok; deny }
+  check -> ok    [label="  authorized"];
+  check -> deny  [label="  not authorized", color="#dc2626", fontcolor="#dc2626"];
+}

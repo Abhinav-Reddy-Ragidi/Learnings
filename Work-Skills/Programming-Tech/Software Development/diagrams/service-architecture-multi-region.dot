@@ -1,0 +1,46 @@
+// Multi-region deployment: replicate the whole stack per region, don't split
+// one call chain across regions. The database is the actual hard part.
+digraph MultiRegion {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.35;
+  ranksep=0.55;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.14,0.1"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8.5, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=10.5];
+
+  browser [label="Browser (user, anywhere)", fillcolor="#dbeafe"];
+  lb [label="Global HTTPS Load Balancer\n(geo / latency routing)", fillcolor="#fde68a", penwidth=1.6];
+
+  subgraph cluster_a {
+    label="Region A stack — e.g. asia-south1";
+    fillcolor="#fefce8";
+    api_a  [label="apps/api", fillcolor="#fef9c3"];
+    sat_a  [label="guide-agent · manuscript-reviewer\ninterview-service", fillcolor="#fef9c3"];
+  }
+
+  subgraph cluster_b {
+    label="Region B stack — e.g. us-central1";
+    fillcolor="#fefce8";
+    api_b  [label="apps/api", fillcolor="#fef9c3"];
+    sat_b  [label="guide-agent · manuscript-reviewer\ninterview-service", fillcolor="#fef9c3"];
+  }
+
+  subgraph cluster_db {
+    label="CockroachDB — multi-region cluster\n(REGIONAL BY ROW + survivability zones)";
+    fillcolor="#f0fdf4";
+    db_a [label="region-local replicas (A)", fillcolor="#dcfce7"];
+    db_b [label="region-local replicas (B)", fillcolor="#dcfce7"];
+  }
+
+  browser -> lb -> api_a [label="nearest region"];
+  lb -> api_b [label="nearest region", style=dashed];
+
+  api_a -> sat_a [label="in-region, IAM-authenticated\n(low latency)"];
+  api_b -> sat_b [label="in-region, IAM-authenticated\n(low latency)"];
+
+  api_a -> db_a [label="local read/write\nfor rows homed here"];
+  api_b -> db_b [label="local read/write\nfor rows homed here"];
+  db_a -> db_b [label="cross-region replication /\nconsensus — design deliberately", dir=both, color="#f59e0b", fontcolor="#b45309"];
+}

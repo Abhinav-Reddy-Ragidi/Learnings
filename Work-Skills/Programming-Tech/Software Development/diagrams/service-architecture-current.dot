@@ -1,0 +1,50 @@
+// Current state (2026-09) of eng-labs' satellite backend services.
+// Red edges/labels mark deviations from the ideal pattern discussed in the note.
+digraph ServiceArchCurrent {
+  rankdir=LR;
+  bgcolor="transparent";
+  nodesep=0.30;
+  ranksep=0.75;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.14,0.09"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8.5, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=10.5, labeljust="l", labelloc="b",
+         style="rounded,filled", color="#cbd5e1"];
+
+  label="⚠ No VPC, no IAM invoker anywhere — every Cloud Run service is public HTTPS,\ntrust is enforced only by static shared-secret headers compared in app code.";
+
+  subgraph cluster_client {
+    label="Browser";
+    fillcolor="#eff6ff";
+    dash [label="Dashboard\n(Next.js)", fillcolor="#dbeafe"];
+  }
+
+  subgraph cluster_services {
+    label="Cloud Run — public HTTPS, asia-south1";
+    fillcolor="#fefce8";
+    api  [label="apps/api\nExpress · Prisma · Firebase auth", fillcolor="#fef9c3"];
+    guide[label="guide-agent\nFastAPI + LangChain\nno DB creds", fillcolor="#fef9c3"];
+    msr  [label="manuscript-reviewer\nCloud Run JOB (no listener)\nno DB creds", fillcolor="#fef9c3"];
+    intv [label="interview-service\nFastAPI + WebSocket", fillcolor="#fef9c3"];
+  }
+
+  subgraph cluster_data {
+    label="Managed state";
+    fillcolor="#f0fdf4";
+    ckdb [label="CockroachDB", fillcolor="#dcfce7"];
+  }
+
+  dash -> api  [label="REST (Firebase JWT)"];
+  dash -> intv [label="WebSocket — direct,\nbypasses apps/api", color="#f59e0b", fontcolor="#b45309"];
+
+  api  -> guide [label="enqueue Cloud Task\n→ POST /turn"];
+  guide -> api  [label="callback\nx-internal-api-key"];
+
+  api  -> msr  [label="Cloud Run Jobs\nAdmin API (runJob)"];
+  msr  -> api  [label="callback PATCH\nx-internal-api-key"];
+
+  intv -> api  [label="sync REST\nx-internal-secret (different header!)", color="#f59e0b", fontcolor="#b45309"];
+
+  api  -> ckdb [label="Prisma\n(sole intended writer)"];
+  intv -> ckdb [label="asyncpg — DIRECT\nShared-Database anti-pattern", color="#dc2626", fontcolor="#dc2626", penwidth=1.6];
+}
