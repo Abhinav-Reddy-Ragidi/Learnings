@@ -11,7 +11,8 @@ digraph MultiRegion {
   graph [fontname="Helvetica", fontsize=10.5];
 
   browser [label="Browser (user, anywhere)", fillcolor="#dbeafe"];
-  lb [label="Global HTTPS Load Balancer\n(geo / latency routing)", fillcolor="#fde68a", penwidth=1.6];
+  lb [label="Global external HTTPS Load Balancer\none anycast IP · automatic latency-based routing\nvia serverless NEGs (no GeoDNS needed)", fillcolor="#fde68a", penwidth=1.6];
+  health [label="Cloud Run Service Health (GA Jul 2026)\nreadiness probe + min-instances≥1\n→ automatic failover on region health", fillcolor="#f3e8ff", color="#a855f7", style="rounded,dashed,filled"];
 
   subgraph cluster_a {
     label="Region A stack — e.g. asia-south1";
@@ -34,8 +35,9 @@ digraph MultiRegion {
     db_b [label="region-local replicas (B)", fillcolor="#dcfce7"];
   }
 
-  browser -> lb -> api_a [label="nearest region"];
-  lb -> api_b [label="nearest region", style=dashed];
+  browser -> lb -> api_a [label="nearest healthy region"];
+  lb -> api_b [label="nearest healthy region", style=dashed];
+  health -> lb [style=dashed, color="#a855f7", dir=back, label="  monitors"];
 
   api_a -> sat_a [label="in-region, IAM-authenticated\n(low latency)"];
   api_b -> sat_b [label="in-region, IAM-authenticated\n(low latency)"];

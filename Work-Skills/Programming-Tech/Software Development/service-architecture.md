@@ -125,7 +125,25 @@ Two things that were conflated in the original question, worth separating cleanl
 - **The async-dispatch workloads tolerate cross-region latency fine.** `guide-agent`'s turn dispatch and `manuscript-reviewer`'s job trigger are already async-with-callback (§2) — nothing is blocking a live user request during that round trip, so these two could in principle run centrally even if the rest of the stack is regional, if there's a reason to (e.g. GPU/model availability only in one region). That's a legitimate exception to "replicate the whole stack," made deliberately — the same category of exception as the WebSocket-direct case in §4.
 - **The real bottleneck is CockroachDB, not the backend.** Standing up a second `apps/api` in a new region does nothing for users if every query still has to round-trip to a single-region database. CockroachDB is *designed* for exactly this problem — multi-region survivability zones and **`REGIONAL BY ROW`** tables, which pin each row to a home region so same-region reads/writes stay local. Going multi-region without configuring this first just relocates the latency bottleneck from "which backend region" to "every DB call," which is worse, not better.
 - **IAM invoker auth (§6) is region-agnostic** — it doesn't need same-VPC or same-region to work, so it's not a blocker to any of this; it's actually a prerequisite, since it's the mechanism that lets two regional stacks trust each other's calls without needing to be network-adjacent.
-- **Routing:** a global HTTPS load balancer (or DNS-based geo routing) in front, sending each user to their nearest full regional stack.
+- **Routing:** a global HTTPS load balancer in front, sending each user to their nearest full regional stack — see §7.1, this part turns out to require less manual work than it sounds like.
+
+### 7.1 The Global Load Balancer's region-routing is automatic — verified against current GCP docs (2026-09)
+
+This was a specific claim worth checking rather than assuming, since it changes how much of §7 is "design work" vs. "just deploy it": **yes, a Google Cloud external HTTPS Load Balancer routes each request to the nearest healthy regional backend automatically, with no GeoDNS or manual region-selection logic required.**
+
+How it actually works:
+
+- The load balancer is fronted by **one global anycast IP** — the same IP is announced from every Google edge location worldwide, so a user's request simply enters Google's network at whichever edge is topologically closest to them. This is a step ahead of DNS-based geo-routing (e.g. Route 53 latency records): there's only one DNS record regardless of region count, and failover doesn't wait on DNS TTL/caching.
+- Once inside Google's network, if the **backend service has multiple serverless NEGs attached — one per region** — the load balancer forwards each request to the NEG in the closest available region. A user in Sydney hits `australia-southeast1`; a user in Frankfurt hits `europe-west1`; a user in Chicago hits `us-central1` — automatically, per-request, with no application code or DNS config making that decision.
+- **As of July 2026, this got a real upgrade: Cloud Run Service Health went GA**, adding automatic cross-region failover on top of the existing latency routing. Setup is two steps — add a readiness probe, set `min-instances ≥ 1` — after which the load balancer reads each NEG's health and reroutes away from a region automatically once enough instances start failing their readiness probes, without anyone flipping a switch by hand.
+
+**So the "automatic" part of your question is genuinely true for the routing decision** — you don't hand-write proximity logic, and you get health-aware failover essentially for free once the readiness probe is wired up. What's still real, deliberate work, not automated by any of this:
+
+1. **Actually deploying the service to each target region** in the first place (a regional Cloud Run deployment per region, as already covered in §7's stack-replication point) and adding each as a serverless NEG to the *same* backend service — a one-time infra setup task (static IP, managed cert, NEGs, URL map), not zero-effort.
+2. **The database is still the bottleneck this doesn't touch.** The load balancer solves *"which region should this browser's request land in"* — it does nothing for *"once it lands, how fast can that region's `apps/api` reach the data it needs."* Route a Bangalore user perfectly to the nearest healthy `apps/api` region, and if that region still has to cross-region round-trip to a single-region CockroachDB for every query, the bottleneck has only moved, not disappeared — this is exactly why §7's `REGIONAL BY ROW` point remains the harder half of going multi-region, not a secondary concern.
+3. **This automatic routing is a *public-entry-point* pattern.** It applies to whichever service sits behind the public global LB (typically `apps/api` and/or the frontend). It doesn't automatically extend to internal, private backend-to-backend calls between satellite services (§6) — a regional `apps/api` calling `guide-agent` should still call the co-located regional instance directly via IAM-authenticated Cloud Run invocation, not be routed through a public global LB, since those services are meant to stay private. (GCP does have a separate cross-region *internal* Application Load Balancer product for private multi-region service-to-service traffic, if that specific need ever comes up — noted here as a pointer, not evaluated in depth.)
+
+Sources: [Set up a global external Application Load Balancer with Cloud Run (GCP docs)](https://docs.cloud.google.com/load-balancing/docs/https/setup-global-ext-https-serverless), [Cloud Run NEGs and Global HA](https://gcpstudyhub.com/blog/cloud-run-negs-and-global-high-availability-for-the-pca-exam), [How to Set Up Cloud Run Multi-Region Deployment with Global Load Balancing](https://oneuptime.com/blog/post/2026-02-17-how-to-set-up-cloud-run-multi-region-deployment-with-global-load-balancing/view)
 
 ---
 
@@ -142,6 +160,7 @@ Two things that were conflated in the original question, worth separating cleanl
 | "Backend services don't need to share a VPC with apps/api if same region" | **Right conclusion, for the wrong reason as originally framed** — the actual enabler isn't "same region is good enough," it's that trust should be **IAM/OIDC-based**, which works regardless of network adjacency; same-region remains valuable purely for latency, independent of the auth question. |
 | "Keep internal Cloud Run services private, let apps/api call them" | **Right — this is exactly Cloud Run IAM invoker.** (Minor correction: the deploy flag is `--no-allow-unauthenticated`, not `--allow-no-authenticated`.) |
 | "Deploying to another geography, deploy everything there too" | **Right instinct** — replicate the whole tightly-coupled stack per region; the part that actually needs deliberate design is the database's multi-region configuration, not the backend services. |
+| "A global load balancer would automatically send traffic to the nearest regional deployment, so multi-region traffic handling is easy" | **Verified true for the routing decision itself** (§7.1) — one anycast IP, automatic latency-based routing via serverless NEGs, plus GA-since-July-2026 health-aware auto-failover. **Not true that it makes multi-region "easy" overall** — the LB removes the *routing* problem, not the *database* problem, which remains the harder half. |
 
 ---
 
@@ -154,4 +173,49 @@ Not a commitment, just what the dependency order would look like if the ideal st
 3. Generate a Python client from `apps/api`'s OpenAPI spec; migrate `guide-agent`'s existing internal calls to use it (low risk — it already has no DB access, this is a refactor of *how* it calls, not *whether* it's allowed to).
 4. Use that same generated client to remove `interview-service`'s direct `asyncpg`/CockroachDB connection, replacing its tenant-scoping SQL with calls back into `apps/api`.
 5. Only then, if cross-language authorization drift becomes a recurring real problem (not preemptively): evaluate an externalized policy service.
-6. Multi-region is a much later, separate initiative — gated on a real geographic-latency requirement showing up, and starts with the CockroachDB `REGIONAL BY ROW` design, not the backend topology.
+6. Multi-region is a much later, separate initiative — gated on a real geographic-latency requirement showing up. The load-balancer/routing half (§7.1) is comparatively cheap and mostly-automatic once you decide to do it; start the real design effort on the CockroachDB `REGIONAL BY ROW` side, not the backend topology.
+
+---
+
+## 10. Cloud Run building block: Service vs. Job vs. Function
+
+Every deployable discussed in this note is one of these three shapes. Worth being precise about the difference, because as of **August 2024 they stopped being separate products** — Google renamed Cloud Functions to **Cloud Run functions** and folded it into the Cloud Run platform; a "function" today is, under the hood, a Cloud Run service where Google builds the container for you instead of you writing a Dockerfile. So the real question was never "which GCP product" — it's **which lifecycle shape fits the workload**, on infrastructure that's now unified.
+
+![The three Cloud Run lifecycle shapes](diagrams/service-architecture-compute-primitives.pdf){ width=100% }
+
+| | **Service** | **Job** | **Function** |
+|---|---|---|---|
+| Lifecycle | Long-lived, request-driven — stays warm, handles many requests over time | Ephemeral, task-driven — starts, runs to completion, exits. **No listener, no port, ever.** | Ephemeral, event-driven — one trigger in, one invocation out |
+| Who builds the container | You do (your own Dockerfile — full control of runtime/deps/language) | You do | **Google does** — you supply only the function source |
+| Trigger | HTTP request / WebSocket connection | Manual, Scheduler, or another service calling the **Cloud Run Jobs Admin API** (`runJob`) — never an HTTP call to the job itself | HTTP, Pub/Sub, Cloud Storage events, and other event sources |
+| Max duration | **60 minutes** per request (default 5 min) | **Up to 168 hours (7 days)** per task (default 10 min; GPU tasks cap at 1 hour) | **60 minutes** (2nd gen); legacy 1st-gen functions cap at 9 min |
+| Parallelism | Autoscales instances to handle concurrent requests | Can fan out **N parallel task indices** in one execution — a native batch-array primitive | One invocation per event; scales by concurrent events |
+| Reachable by the frontend? | Yes, if public | **Never directly** — no HTTP surface exists to reach | Yes, if HTTP-triggered and public |
+
+**The decision, as three questions, in order:**
+
+1. **Does it need to listen and respond to requests indefinitely?** → **Service.** (`apps/api`, `guide-agent`, `interview-service` — all long-lived listeners.)
+2. **No listener at all — does it run a task to completion, possibly for hours, possibly with parallel task fan-out?** → **Job.** (`manuscript-reviewer` — reads one PDF from GCS, reviews it, PATCHes a result back, exits. No HTTP surface was ever needed, and a single manuscript review could plausibly run well past a function's 60-minute ceiling — Jobs' 7-day headroom is exactly why this wasn't built as a function.)
+3. **Small, single-purpose, triggered by an event, and you don't want to own a Dockerfile for it?** → **Function.** (The `cloud-functions/` workspace — `audio-explainer`, `latex-converter`, `prompt-eval`, `solution-agent`, `tts-generator` — five narrow, single-entrypoint transforms, each easier to express as "here's my function" than as a maintained container image.)
+
+A useful reframe if the three ever feel interchangeable: a **Function** is a Service you didn't have to containerize, scoped to one entrypoint and a shorter timeout; a **Job** is the one shape of the three with **no HTTP surface at all** — if something has no business being reachable by a request, Job is the only one of the three that structurally enforces that, rather than relying on IAM/network config to keep it private (§6).
+
+### 10.1 "It's async, so it should be a Function" — a common mix-up, worth untangling
+
+**Async dispatch and compute shape are two independent decisions**, not one. Cloud Tasks (the queue that gives you reliable, retried delivery) will call *any* HTTPS target — a Service route, a Function, doesn't matter. Picking "async" doesn't pick the compute shape for you; the §10 questions (duration, does it need a listener, does it need independent scaling) still decide that, same as for a synchronous call.
+
+Proof from this codebase: `apps/api` dispatches to `guide-agent` via exactly this pattern — enqueue a Cloud Task, it `POST`s `guide-agent`'s `/turn` endpoint, the answer comes back later via a callback. It's fully async — and `guide-agent` is a **Service**, not a Function, because the work (a multi-minute, multi-tool-call LLM loop) needs more time and more persistent state than a Function's model comfortably gives.
+
+Also worth being precise on: **Cloud Tasks stores the *queue of pending invocations* (retries, backoff, dedup) — not the *result*.** Whoever processes the task still has to persist the outcome itself (here: the callback route writing back into `apps/api`'s DB). Don't reach for "Cloud Tasks will store it" as a substitute for actually writing the result somewhere.
+
+Where "async → Function" *is* a good instinct: when the async task is genuinely small, stateless, single-purpose (resize an image, fire a webhook) — Function fits because it's **small**, not because it's async. And when the async work is one-shot batch with no need to ever be reached by a request at all (`manuscript-reviewer`), it skips Cloud Tasks entirely and dispatches via the **Jobs Admin API** instead — a third mechanism, used because Jobs have no HTTP surface for a task queue to call in the first place.
+
+### 10.2 "It's a small/quick task, so it should be a Function" — necessary, not sufficient
+
+Fitting under a Function's 60-minute cap only rules Job *out*; it doesn't automatically pick Function over "just a route on an existing Service." Two further questions decide it:
+
+**Per-item or batch?** This platform's own `ai-evaluator` Cloud Function is the confirming example: exam/submission evaluation is dispatched **one Cloud Task per submission** onto an `exam-evaluation-queue`, each landing as one independent, stateless Function invocation — exactly the right shape for "evaluate this one thing." But if the need ever becomes *"evaluate a whole batch together as one operation"* (e.g. grade all 500 submissions in an exam window in one run), that's a better fit for a **Job**'s native parallel task fan-out — one execution ID, one completion signal, built-in concurrency control — rather than firing N independent Cloud-Tasks-to-Function calls and having to build batch-level bookkeeping (did all 500 finish? which failed?) yourself on top.
+
+**Does it need its own deployable at all?** Being quick doesn't require a *new* Function — it could just be a route on an existing Service (§10.1's callback-route pattern). The real reason `ai-evaluator`/`prompt-eval` are their own Functions rather than routes on `apps/api` is almost certainly that they carry their own LLM-call dependency footprint and want a timeout/failure domain independent of the main API's request budget — that's the actual test, not "is it small."
+
+Sources: [Cloud Run Jobs vs. Cloud Functions — key differences](https://medium.com/@med.wael.thabet/google-cloud-run-jobs-vs-cloud-functions-key-differences-and-practical-use-cases-1b9a0c6402a6), [The Unification of Google Cloud Functions and Google Cloud Run](https://www.cloudthat.com/resources/blog/the-unification-of-google-cloud-functions-and-google-cloud-run-into-google-cloud-run-functions), [Compare Cloud Run functions (GCP docs)](https://docs.cloud.google.com/run/docs/functions/comparison), [Cloud Run Quotas and Limits (GCP docs)](https://docs.cloud.google.com/run/quotas)

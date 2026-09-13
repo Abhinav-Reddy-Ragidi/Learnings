@@ -1,0 +1,40 @@
+// The three Cloud Run lifecycle shapes, side by side. All three now run on the
+// same underlying Cloud Run infrastructure (Cloud Functions was folded in, Aug 2024).
+digraph ComputePrimitives {
+  rankdir=TB;
+  bgcolor="transparent";
+  nodesep=0.35;
+  ranksep=0.3;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=9.5,
+        color="#334155", fillcolor="#f8fafc", penwidth=1.2, margin="0.13,0.09"];
+  edge [color="#94a3b8", penwidth=1.0, arrowsize=0.6, fontname="Helvetica", fontsize=8, fontcolor="#64748b"];
+  graph [fontname="Helvetica", fontsize=10.5, labeljust="l"];
+
+  subgraph cluster_svc {
+    label="SERVICE — request-driven, long-lived";
+    fillcolor="#fefce8";
+    s1 [label="request arrives\n(HTTP / WebSocket)", fillcolor="#fef9c3"];
+    s2 [label="container already warm,\nyou wrote the Dockerfile", fillcolor="#fef9c3"];
+    s3 [label="handles it, replies,\nstays up for the next one", fillcolor="#fef9c3"];
+    s1 -> s2 -> s3;
+    s3 -> s1 [label="  next request", style=dashed, constraint=false];
+  }
+
+  subgraph cluster_job {
+    label="JOB — task-driven, run-to-completion";
+    fillcolor="#eff6ff";
+    j1 [label="triggered\n(Admin API / Scheduler)", fillcolor="#dbeafe"];
+    j2 [label="container starts,\nyou wrote the Dockerfile\n(optionally N parallel tasks)", fillcolor="#dbeafe"];
+    j3 [label="runs to completion,\nexits — no listener, ever", fillcolor="#dbeafe"];
+    j1 -> j2 -> j3;
+  }
+
+  subgraph cluster_fn {
+    label="FUNCTION — event-driven, single entrypoint";
+    fillcolor="#f0fdf4";
+    f1 [label="event / HTTP trigger\n(Pub/Sub, Storage, webhook)", fillcolor="#dcfce7"];
+    f2 [label="Google builds the container\nfor you — you write only the fn", fillcolor="#dcfce7"];
+    f3 [label="runs your function,\nexits", fillcolor="#dcfce7"];
+    f1 -> f2 -> f3;
+  }
+}
