@@ -1,0 +1,33 @@
+digraph return_path {
+  rankdir=TB; nodesep=0.40; ranksep=0.42;
+  fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fillcolor="#eef2f7", fontname="Helvetica", fontsize=10, margin="0.16,0.08"];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  ans [label="TurnResponse\nblocks · tokensIn/Out · summary · refusedBy\nartifactCounts · model · promptVersion", fillcolor="#e8f4ea"];
+
+  subgraph cluster_complete {
+    label="apps/api — completeTurn (idempotent, conditioned on pending)";
+    fontsize=10; style=dashed; color="#999999"; margin=10;
+    floor [label="review(blocks)\nblock types only — G3/G4 were removed 2026-08-17", fillcolor="#fdecec"];
+    ing   [label="ingestArtifacts\nONLY on a turn that will be shown\na viz fence becomes a row"];
+    write [label="guide_messages: blocks, pending=false, refused_by"];
+    job   [label="guide_turn_jobs → COMPLETED | FAILED | REVIEWER_BLOCKED\ntokens, model, prompt_version, artifact counts"];
+    floor -> ing -> write -> job;
+  }
+
+  wdraw [label="withdrawArtifactsForMessage\na refused turn must leave nothing behind", fillcolor="#f2f2f2"];
+  summ  [label="guide_sessions.summary\nonly when the turn passed — a memory of a\nconversation the student never saw is a lie", fillcolor="#f6efe2"];
+
+  sse [label="guide-stream.ts — one SSE stream per open thread\nraw fetch (EventSource cannot carry an auth header)\nstage events while pending, then the settled row"];
+  seen [label="the student reads the answer", fillcolor="#e8f4ea"];
+
+  wd [label="watchdog — Cloud Scheduler ~1/min\nPOST /internal/guide-turns/sweep → expireOverdueTurns\nthe only other way a pending row stops being pending", shape=note, fillcolor="#f2f2f2"];
+
+  ans -> floor;
+  job -> wdraw [label="withheld", style=dashed];
+  job -> summ [label="delivered"];
+  job -> sse;
+  sse -> seen;
+  wd -> write [label="if the callback never arrives", style=dashed, constraint=false];
+}

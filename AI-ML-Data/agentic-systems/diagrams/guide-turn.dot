@@ -1,0 +1,35 @@
+digraph turn {
+  rankdir=TB; nodesep=0.45; ranksep=0.5;
+  fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fillcolor="#eef2f7", fontname="Helvetica", fontsize=11, margin="0.16,0.09"];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  msg [label="student message"];
+  inb [label="1 · inbound reviewer — temp 0, no tools", fillcolor="#fdecec"];
+
+  subgraph cluster_loop {
+    label="the agentic loop — the model owns the routing";
+    fontsize=10; style=dashed; color="#999999"; margin=12;
+    { rank=same; model; tools; }
+    model [label="2 · guide agent\ntemp 0.2 — the only call\nthat sees tool output"];
+    tools [label="22 tools\nrepo · uploads · web · papers\nsession · journal · milestones\nverification · reading · artifacts"];
+    inner [label="fire inside the loop:\n3 · artifact source reviewer\n4 · artifact vision reviewer\n8 · paper reranker", fillcolor="#fdecec", fontsize=10];
+    model -> tools [label="tool call"];
+    tools -> model [label="result"];
+    tools -> inner [style=dotted, arrowhead=none];
+  }
+
+  outb [label="5 · outbound reviewer  (6 · staff variant when scope = TRACK)\ntemp 0, no tools — never sees what the tools read", fillcolor="#fdecec"];
+  ans  [label="answer", fillcolor="#e8f4ea"];
+  ref  [label="refusal", fillcolor="#f2f2f2"];
+  summ [label="7 · summariser — flash-lite\nonly if the answer was delivered", fillcolor="#f6efe2"];
+
+  msg -> model [lhead=cluster_loop, style=invis];
+  msg -> inb;
+  inb -> model [label="pass"];
+  inb -> ref [label="refuse", style=dashed];
+  model -> outb [label="answer text"];
+  outb -> ans [label="pass"];
+  outb -> ref [label="refuse", style=dashed];
+  ans -> summ;
+}

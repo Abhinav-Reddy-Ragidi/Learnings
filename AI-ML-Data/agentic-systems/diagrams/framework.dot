@@ -1,0 +1,49 @@
+digraph framework {
+  rankdir=TB; compound=true; newrank=true;
+  nodesep=0.50; ranksep=0.55;
+  fontname="Helvetica"; fontsize=11;
+  node [shape=box, style="rounded,filled", fillcolor="#eef2f7",
+        fontname="Helvetica", fontsize=11, margin="0.16,0.10"];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  tasks   [label="TASKS IN — each task written down", fillcolor="#e6ecf6"];
+
+  subgraph cluster_agent {
+    label="THE AGENT — non-deterministic: same task in, a different path each run";
+    style=dashed; color="#8a8a8a"; fontsize=11; margin=14;
+    shape_ [label="one agentic loop — the model picks the next tool\n— or —\na workflow of nodes — code picks the next step"];
+    subgraph cluster_caps {
+      label="its capabilities — all it can actually do";
+      style=dotted; color="#999999"; fontsize=10; margin=10;
+      model [label="model\nchosen per\ntask type", fillcolor="#e9eef5"];
+      tools [label="tools\nwhich tool does\neach task need?", fillcolor="#e9eef5"];
+      env   [label="environment\nsandbox · data\n· network", fillcolor="#e9eef5"];
+    }
+    shape_ -> model [style=invis];
+  }
+
+  outcome [label="EXPECTED OUTCOME OUT — what counts as done, per task", fillcolor="#e4f0e6"];
+
+  track [label="TRACK EVERY\nREQUEST\ninput · path taken\noutcome · cost", fillcolor="#f6efe2"];
+  fb    [label="USER FEEDBACK\nhallucinated ·\nwrong refusal ·\nmissed evidence", fillcolor="#f8e8e8"];
+  bench [label="TAGGED\nBENCHMARK\nfailing request + tag\n+ the right answer", fillcolor="#f6efe2"];
+  cause [label="ROOT CAUSE\nper bad case\nmissing tool? model?\nprompt? context?", fillcolor="#f8e8e8"];
+  fix   [label="FIX, then replay\nthe whole benchmark\nbefore shipping", fillcolor="#e4f0e6"];
+
+  { rank=same; model; tools; env; }
+  { rank=same; bench; fb; track; }
+  { rank=same; fix; cause; }
+
+  model -> tools [style=invis];
+  tools -> env [style=invis];
+
+  tasks -> shape_ [lhead=cluster_agent];
+  env -> outcome [ltail=cluster_agent];
+  outcome -> track [label="  every turn"];
+  fb -> track [dir=back, label="every failure\nbecomes a case  "];
+  bench -> fb [dir=back];
+  cause -> bench [dir=back];
+  fix -> cause [dir=back, constraint=false];
+  fix -> shape_ [lhead=cluster_agent, constraint=false, style=dashed, color="#8a5a00", fontcolor="#8a5a00",
+                 label="close the gap:\nadd a tool, swap the model,\nfix the prompt  "];
+}

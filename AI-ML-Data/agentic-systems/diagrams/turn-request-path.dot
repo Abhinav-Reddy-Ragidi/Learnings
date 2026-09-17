@@ -1,0 +1,47 @@
+digraph request_path {
+  rankdir=TB; nodesep=0.40; ranksep=0.42;
+  fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fillcolor="#eef2f7", fontname="Helvetica", fontsize=10, margin="0.16,0.08"];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // Two columns, serpentine: the request runs down the left (browser → api →
+  // queue) and continues down the right (the agent). The hand-off edge carries
+  // constraint=false so the right column starts a new row instead of extending
+  // one unreadable 10-deep chain.
+
+  subgraph cluster_browser {
+    label="browser — apps/dashboard";
+    fontsize=10; style=dashed; color="#999999"; margin=10;
+    up   [label="use-attachment.ts\n1 authorise · 2 PUT bytes straight to storage\n3 confirm (real size + magic bytes)", fillcolor="#f6efe2"];
+    comp [label="composer.tsx → use-guide.ts\nPOST /projects/groups/:g/guide-sessions/:s/messages\nbody: { text, attachment_ids }"];
+    up -> comp [label="ids only, never bytes"];
+  }
+
+  subgraph cluster_api {
+    label="apps/api — owns auth, tenancy, persistence";
+    fontsize=10; style=dashed; color="#999999"; margin=10;
+    gate [label="pre-transaction gates\nsession open · resolveAttachments (≤10)\nG1 inbound screen · token budget", fillcolor="#fdecec"];
+    tx   [label="ONE transaction\nstudent row · pending agent row (= turn_id)\nguide_turn_jobs QUEUED + deadline_at"];
+    snap [label="getAgentContext(group, session, messageId)\n~15 parallel queries → one JSON snapshot\nthread sliced at THIS turn, pending rows dropped", fillcolor="#e8f4ea"];
+    gate -> tx -> snap;
+  }
+
+  q [label="Cloud Tasks\n(Redis when GUIDE_DISPATCH=redis)\n+ traceparent   + enqueuedAt", shape=note, fillcolor="#f2f2f2"];
+
+  subgraph cluster_agent {
+    label="apps/guide-agent — no database access at all";
+    fontsize=10; style=dashed; color="#999999"; margin=10;
+    recv  [label="POST /turn — TurnRequest validated\nbad payload → 400, never 5xx (must not retry-spin)"];
+    load  [label="load_context(ctx, expect_group=groupId)\n→ GuideContext; root span stamped with the four ids"];
+    tset  [label="toolset.build(groupId, session_id, message_id)\n10 sources, bound to THIS group for THIS turn"];
+    split [label="_history_and_current(ctx)\nthe current turn is removed from history\nso nothing judges it twice"];
+    recv -> load -> tset -> split;
+  }
+
+  comp -> gate [label="HTTPS"];
+  snap -> q [label="enqueueGuideTurn"];
+
+  // The serpentine break, and the alignment that puts the agent column beside
+  // the browser column rather than 2000px below it.
+  q -> recv [label="push, not fetch", constraint=false];
+}

@@ -1,0 +1,34 @@
+digraph taskfit {
+  rankdir=TB; nodesep=0.35; ranksep=0.45;
+  fontname="Helvetica"; fontsize=11;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.14,0.08"];
+  edge [color="#555555"];
+
+  entry [label="a turn arrives", fillcolor="#e6ecf6"];
+
+  subgraph cluster_fits {
+    label="ONE AGENTIC LOOP IS THE RIGHT SHAPE";
+    style=dashed; color="#4a7a4a"; fontcolor="#3a6a3a"; fontsize=10; margin=10;
+    a [label="retrieval — repo, files,\nearlier threads  (2,3,5)", fillcolor="#e4f0e6"];
+    b [label="explanation —\nunblock a doubt  (1,18)", fillcolor="#e4f0e6"];
+    c [label="multi-step research —\npapers, web  (4)", fillcolor="#e4f0e6"];
+    d [label="state writes —\njournal, reading, plan  (6,7,12)", fillcolor="#e4f0e6"];
+    e [label="generation — charts,\ndiagrams (self-repairing)  (13)", fillcolor="#e4f0e6"];
+  }
+
+  subgraph cluster_strains {
+    label="OUTGROWS THE LOOP";
+    style=dashed; color="#a05a5a"; fontcolor="#8a4a4a"; fontsize=10; margin=10;
+    f [label="judgment with consequences —\nis the milestone done?\nare these results wrong?  (8,9,10,16)", fillcolor="#f8e8e8"];
+    g [label="interactive examination —\nviva across turns  (14)", fillcolor="#f8e8e8"];
+  }
+
+  guard [label="guardrails — already outside the loop,\nand should stay there  (15)", fillcolor="#f6efe2"];
+
+  a -> b -> c -> d -> e [style=invis];
+  f -> g [style=invis];
+  g -> guard [style=invis];
+  entry -> a [lhead=cluster_fits];
+  entry -> f [lhead=cluster_strains];
+  entry -> guard [constraint=false];
+}
