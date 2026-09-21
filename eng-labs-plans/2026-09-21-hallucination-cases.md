@@ -1,6 +1,8 @@
 # Hallucination cases in the guiding agent — what we have actually observed
 
-_Everything on record as of 2026-09-21, from two fully investigated turns plus the milestone audit. Sources: turn reports in this folder, the parked error-handling brainstorm, and `agentic-systems.md` §9. Each case carries its tag from the §9.1 vocabulary; the one-line cause for every one is collected at the end._
+_Everything on record as of 2026-09-21, from the two fully investigated turns. Sources: the turn reports in this folder, the parked error-handling brainstorm, and `agentic-systems.md` §9. Each case carries its tag from the §9.1 vocabulary; the one-line cause for every one is collected at the end._
+
+_Scope note: milestone **validation** gaps — one result verifying several milestones, no record of which milestone a verdict covered — are a separate class and live in `2026-09-18-milestone-verification-gaps.md`. Only fabrication by the model is collected here._
 
 ## Case 1 — fabricated externals (dev, turn `PeFe2xzxr5qNgWF2tYMWV`, 2026-09-14)
 
@@ -24,12 +26,6 @@ Tags: `hallucinated-source` (H1, H2), `unusable` (H3).
 
 Tags: `hallucinated-source` (H4), `wrong-refusal` (H5), `unusable` (H6).
 
-## Case 3 — relevance asserted, never checked (milestone audit, 2026-09-18)
-
-- **H7 · one result verifying several milestones** — four milestones show as passed, each citing a `result` item describing the same preprocessing logs, written up in four different sentences. The corroboration check tests that a cited result is *verified*; it never tests that it is *about* that milestone, and no verification record says which milestone it covered.
-
-Tag: `hallucinated-source`.
-
 ## The classes, and whether anything guards them
 
 | Class | Observed | Guarded today |
@@ -39,7 +35,6 @@ Tag: `hallucinated-source`.
 | URLs and links | H2 | **no** — though `blocks._is_cited` already computes the signal and discards it |
 | Paper citations (doi, arXiv, title) | not yet | partially — `_is_cited` exists for rendering |
 | Claims about actions taken | H4 | **no** — fixed on the evidence branch |
-| Relevance of cited evidence | H7 | **no** |
 | Repo paths or files never opened | not yet | **no** |
 | Fidelity of quotes ("your config sets seed=42") | not yet | provenance only, never content |
 | General world knowledge | not yet | **no** — and not checkable locally |
@@ -52,12 +47,11 @@ Tag: `hallucinated-source`.
 - **H4 — claimed a refused action as done:** the outbound reviewer is never told what the turn's tools actually did, so a claim about an action has nothing to be checked against.
 - **H5 — correct numbers refused:** an image contributes no text to `read_text`, so a number read with eyes can never enter the traceable set, and "untraced" is treated as "invented".
 - **H6 — substitute denied work already done:** tool side effects commit mid-loop before any reviewer decides, and a withheld turn rolls back artifacts only — never milestone moves or verifications.
-- **H7 — one result verifying several milestones:** the corroboration check asks whether a cited result is verified, never whether it is relevant, and `guide_verifications` has no milestone column to record what the verdict was actually about.
 
 ## The common cause underneath
 
-Six of the seven are the same shape: **the system can check provenance but never checks it for anything except numbers, and the one component that could judge the rest is handed no facts about what the turn did.** H5 is the same gap seen from the other side — provenance that exists but cannot be recorded, treated as provenance that does not exist.
+Five of the six are the same shape: **the system can check provenance but never checks it for anything except numbers, and the one component that could judge the rest is handed no facts about what the turn did.** H5 is the same gap seen from the other side — provenance that exists but cannot be recorded, treated as provenance that does not exist.
 
 ## Status
 
-`fix/outbound-reviewer-evidence` (rebased on main, 408 tests green, unpushed) addresses H4 and H5, and makes H6 visible for the first time. H1, H2 and H7 are unaddressed; the link tracer for H2 is the cheapest next one, because the detection already exists and only needs reporting. The benchmark table in `agentic-systems.md` §9.3 is still empty — these seven are its first rows.
+`fix/outbound-reviewer-evidence` (rebased on main, 408 tests green, unpushed) addresses H4 and H5, and makes H6 visible for the first time. H1, H2 and H3 are unaddressed; the link tracer for H2 is the cheapest next one, because the detection already exists and only needs reporting. The benchmark table in `agentic-systems.md` §9.3 is still empty — these six are its first rows.
