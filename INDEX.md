@@ -2,7 +2,7 @@
 
 Topic list for the knowledge base. One line per note; follow the link for the full document.
 
-_Last updated: 2026-09-17_
+_Last updated: 2026-09-20_
 
 ## AI-ML-Data
 
@@ -10,7 +10,7 @@ _Last updated: 2026-09-17_
 |---|---|---|
 | AI Models | [ai-models.md](AI-ML-Data/ai-models/ai-models.md) | What a model is, training vs inference, learning paradigms, discriminative vs generative, model families, foundation-model stack, choosing a model |
 | — LLMs | [llms.md](AI-ML-Data/ai-models/llms/llms.md) | Tokens, attention, context window, training stages, decoding controls, **model behaviour → pipeline design**, pipeline patterns, adaptation strategy, evals, cost & latency |
-| Agentic systems | [agentic-systems.md](AI-ML-Data/agentic-systems/agentic-systems.md) | **Single source of truth for the Project Mentor guiding agent**: the task→capability→tracking→benchmark framework, agent registry (inputs and expected outputs of all 8 model calls), 22-tool catalogue, 18-task inventory with the one-loop fit analysis, debug sheet (tags, root causes, benchmark cases), the issue & fix register, and a step-by-step implementation walkthrough of one turn across all three processes (§10) |
+| Agentic systems | [agentic-systems.md](AI-ML-Data/agentic-systems/agentic-systems.md) | **Single source of truth for the Project Mentor guiding agent**: the task→capability→tracking→benchmark framework, **memory layers** (the ten stores, their read/write policies and precedence rules), agent registry (inputs and expected outputs of all 8 model calls), 22-tool catalogue, 18-task inventory with the one-loop fit analysis, debug sheet (tags, root causes, benchmark cases), the issue & fix register, the **open-questions log (Q-01…)**, the **planned-work backlog (P-01…)**, and the end-to-end implementation walkthrough |
 
 ## Programming-Tech
 
